@@ -16,23 +16,24 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware CORS - deve vir primeiro
 app.use((req, res, next) => {
-  const allowedOrigins = [
-    'http://localhost:8100',
-    'http://localhost:4200',
-    'https://finzee-app-frontend.vercel.app'
-  ];
-  
   const origin = req.headers.origin;
-  if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app'))) {
-    res.header('Access-Control-Allow-Origin', origin);
+  
+  // Permitir localhost e qualquer domínio .vercel.app
+  if (origin && (
+    origin.includes('localhost') || 
+    origin.endsWith('.vercel.app')
+  )) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   
+  // Responder imediatamente às requisições OPTIONS
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+    res.status(204).end();
+    return;
   }
   
   next();
