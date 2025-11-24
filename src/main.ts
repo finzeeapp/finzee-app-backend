@@ -19,7 +19,7 @@ app.use((req, res, next) => {
   const allowedOrigins = [
     'http://localhost:8100',
     'http://localhost:4200',
-    'https://finzee-app-frontend-gxe43yi7y-finzee-apps-projects.vercel.app'
+    'https://finzee-app-frontend.vercel.app'
   ];
   
   const origin = req.headers.origin;
