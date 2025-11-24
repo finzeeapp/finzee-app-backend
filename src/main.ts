@@ -12,7 +12,7 @@ import { errorHandler } from './middleware/error.middleware';
 import { SchedulerService } from './services/scheduler-simple.service';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Middleware CORS - deve vir primeiro
 app.use((req, res, next) => {
@@ -66,8 +66,8 @@ app.use(errorHandler);
 const schedulerService = new SchedulerService();
 console.log('📅 Scheduler de pendências mensais inicializado');
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
   console.log('📊 API Endpoints disponíveis:');
   console.log('   - POST /api/scheduler/execute - Executar geração manual de pendências');
   console.log('   - GET  /api/scheduler/status - Status do scheduler');
