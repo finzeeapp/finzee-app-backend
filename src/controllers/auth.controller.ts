@@ -80,10 +80,14 @@ export class AuthController {
 
   async updateProfile(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      console.log('Atualizando perfil do usuário:', userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      
+      console.log('Atualizando perfil do usuário:', req.userId);
       console.log('Dados recebidos:', req.body);
-      const user = await this.authService.updateUser(userId, req.body);
+      const user = await this.authService.updateUser(req.userId, req.body);
       res.json(user);
     } catch (error: any) {
       console.error('Erro ao atualizar perfil:', error);
