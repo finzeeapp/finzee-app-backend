@@ -197,7 +197,14 @@ export class AuthService {
       throw new Error('Usuário não encontrado');
     }
 
-    return user;
+    // Return with frontend-compatible field names
+    return {
+      ...user,
+      investmentProfile: user.investorProfile,
+      investmentCapacity: user.monthlyInvestmentCapacity,
+      notificationDays: user.notificationDaysBefore,
+      savingsDeadline: user.savingsGoalDeadline
+    };
   }
 
   async updateUser(userId: string, updateData: any): Promise<any> {
@@ -205,19 +212,20 @@ export class AuthService {
 
     // Mapear campos permitidos
     if (updateData.name) dataToUpdate.name = updateData.name;
-    if (updateData.monthlyIncome !== undefined) dataToUpdate.monthlyIncome = updateData.monthlyIncome;
+    if (updateData.monthlyIncome !== undefined) dataToUpdate.monthlyIncome = Number(updateData.monthlyIncome);
     if (updateData.investmentProfile || updateData.investorProfile) {
       dataToUpdate.investorProfile = updateData.investmentProfile || updateData.investorProfile;
     }
     if (updateData.investmentCapacity !== undefined || updateData.monthlyInvestmentCapacity !== undefined) {
-      dataToUpdate.monthlyInvestmentCapacity = updateData.investmentCapacity || updateData.monthlyInvestmentCapacity;
+      dataToUpdate.monthlyInvestmentCapacity = Number(updateData.investmentCapacity || updateData.monthlyInvestmentCapacity);
     }
     if (updateData.notificationDays !== undefined || updateData.notificationDaysBefore !== undefined) {
-      dataToUpdate.notificationDaysBefore = updateData.notificationDays || updateData.notificationDaysBefore;
+      dataToUpdate.notificationDaysBefore = Number(updateData.notificationDays || updateData.notificationDaysBefore);
     }
-    if (updateData.savingsGoal !== undefined) dataToUpdate.savingsGoal = updateData.savingsGoal;
+    if (updateData.savingsGoal !== undefined) dataToUpdate.savingsGoal = Number(updateData.savingsGoal);
     if (updateData.savingsDeadline || updateData.savingsGoalDeadline) {
-      dataToUpdate.savingsGoalDeadline = updateData.savingsDeadline || updateData.savingsGoalDeadline;
+      const deadline = updateData.savingsDeadline || updateData.savingsGoalDeadline;
+      dataToUpdate.savingsGoalDeadline = deadline ? new Date(deadline) : null;
     }
 
     const updatedUser = await prisma.user.update({
@@ -238,6 +246,13 @@ export class AuthService {
       }
     });
 
-    return updatedUser;
+    // Return with frontend-compatible field names
+    return {
+      ...updatedUser,
+      investmentProfile: updatedUser.investorProfile,
+      investmentCapacity: updatedUser.monthlyInvestmentCapacity,
+      notificationDays: updatedUser.notificationDaysBefore,
+      savingsDeadline: updatedUser.savingsGoalDeadline
+    };
   }
 }
