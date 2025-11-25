@@ -5,3 +5,5 @@ dist
 .env.local
 uploads/*
 !uploads/.gitkeep
+
+/src/generated/prisma

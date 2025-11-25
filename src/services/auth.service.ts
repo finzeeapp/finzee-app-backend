@@ -1,35 +1,28 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { DatabaseService } from './database.service';
-import { v4 as uuidv4 } from 'uuid';
-
-// Importar types localmente
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  passwordHash?: string;
-  monthlyIncome?: number;
-  investmentProfile?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { prisma } from './prisma.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'finzee-secret-key-change-in-production';
 
+interface UserResponse {
+  id: string;
+  email: string;
+  name: string;
+}
+
 export class AuthService {
-  private db = DatabaseService.getInstance();
 
   async register(userData: {
     email: string;
     password: string;
     name: string;
     monthlyIncome?: number;
-  }): Promise<{ token: string; user: Partial<User> }> {
+  }): Promise<{ token: string; user: UserResponse }> {
     // Verificar se o email já existe
-    const users = this.db.getUsers();
-    const existingUser = users.find(u => u.email === userData.email);
+    const existingUser = await prisma.user.findUnique({
+      where: { email: userData.email }
+    });
     
     if (existingUser) {
       throw new Error('Email já cadastrado');
@@ -39,18 +32,15 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(userData.password, 10);
 
     // Criar usuário
-    const user: User = {
-      id: uuidv4(),
-      email: userData.email,
-      name: userData.name,
-      passwordHash,
-      monthlyIncome: userData.monthlyIncome,
-      investmentProfile: 'MODERATE',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    this.db.addUser(user);
+    const user = await prisma.user.create({
+      data: {
+        email: userData.email,
+        name: userData.name,
+        passwordHash,
+        monthlyIncome: userData.monthlyIncome,
+        investorProfile: 'moderado'
+      }
+    });
 
     // Gerar token
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
@@ -68,9 +58,10 @@ export class AuthService {
   async login(credentials: {
     email: string;
     password: string;
-  }): Promise<{ token: string; user: Partial<User> }> {
-    const users = this.db.getUsers();
-    const user = users.find(u => u.email === credentials.email);
+  }): Promise<{ token: string; user: UserResponse }> {
+    const user = await prisma.user.findUnique({
+      where: { email: credentials.email }
+    });
 
     if (!user || !user.passwordHash) {
       throw new Error('Credenciais inválidas');
@@ -94,11 +85,12 @@ export class AuthService {
     };
   }
 
-  async validateToken(token: string): Promise<{ valid: boolean; user?: Partial<User> }> {
+  async validateToken(token: string): Promise<{ valid: boolean; user?: UserResponse }> {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-      const users = this.db.getUsers();
-      const user = users.find(u => u.id === decoded.userId);
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId }
+      });
 
       if (!user) {
         return { valid: false };
@@ -118,8 +110,9 @@ export class AuthService {
   }
 
   async forgotPassword(email: string): Promise<{ message: string }> {
-    const users = this.db.getUsers();
-    const user = users.find(u => u.email === email);
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
 
     if (!user) {
       // Por segurança, não revelar se o e-mail existe ou não
@@ -130,10 +123,14 @@ export class AuthService {
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hora
 
-    // Salvar token no usuário (simulado - em produção seria salvo no banco)
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = resetTokenExpiry.toISOString();
-    this.db.save();
+    // Salvar token no usuário
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken,
+        resetTokenExpiry
+      }
+    });
 
     // Simular envio de e-mail (em produção, usar serviço de e-mail real)
     console.log(`🔗 Link de recuperação para ${email}:`);
@@ -144,17 +141,16 @@ export class AuthService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
-    const users = this.db.getUsers();
-    const user = users.find(u => u.resetToken === token);
+    const user = await prisma.user.findFirst({
+      where: { resetToken: token }
+    });
 
     if (!user || !user.resetTokenExpiry) {
       throw new Error('Token de reset inválido ou expirado');
     }
 
     const now = new Date();
-    const tokenExpiry = new Date(user.resetTokenExpiry);
-
-    if (now > tokenExpiry) {
+    if (now > user.resetTokenExpiry) {
       throw new Error('Token de reset expirado');
     }
 
@@ -164,59 +160,84 @@ export class AuthService {
     }
 
     // Criptografar nova senha
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Atualizar senha e limpar tokens
-    user.passwordHash = hashedPassword;
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
-    user.updatedAt = new Date().toISOString();
-
-    this.db.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null
+      }
+    });
 
     return { message: 'Senha redefinida com sucesso!' };
   }
 
   async getUserById(userId: string): Promise<any> {
-    const users = this.db.getUsers();
-    const user = users.find(u => u.id === userId);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        monthlyIncome: true,
+        monthlyInvestmentCapacity: true,
+        investorProfile: true,
+        notificationDaysBefore: true,
+        savingsGoal: true,
+        savingsGoalDeadline: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
 
     if (!user) {
       throw new Error('Usuário não encontrado');
     }
 
-    // Retornar usuário sem o hash da senha
-    const { passwordHash, resetToken, resetTokenExpiry, ...userWithoutSensitive } = user as any;
-    return userWithoutSensitive;
+    return user;
   }
 
   async updateUser(userId: string, updateData: any): Promise<any> {
-    const users = this.db.getUsers();
-    const userIndex = users.findIndex(u => u.id === userId);
+    const dataToUpdate: any = {};
 
-    if (userIndex === -1) {
-      throw new Error('Usuário não encontrado');
+    // Mapear campos permitidos
+    if (updateData.name) dataToUpdate.name = updateData.name;
+    if (updateData.monthlyIncome !== undefined) dataToUpdate.monthlyIncome = updateData.monthlyIncome;
+    if (updateData.investmentProfile || updateData.investorProfile) {
+      dataToUpdate.investorProfile = updateData.investmentProfile || updateData.investorProfile;
+    }
+    if (updateData.investmentCapacity !== undefined || updateData.monthlyInvestmentCapacity !== undefined) {
+      dataToUpdate.monthlyInvestmentCapacity = updateData.investmentCapacity || updateData.monthlyInvestmentCapacity;
+    }
+    if (updateData.notificationDays !== undefined || updateData.notificationDaysBefore !== undefined) {
+      dataToUpdate.notificationDaysBefore = updateData.notificationDays || updateData.notificationDaysBefore;
+    }
+    if (updateData.savingsGoal !== undefined) dataToUpdate.savingsGoal = updateData.savingsGoal;
+    if (updateData.savingsDeadline || updateData.savingsGoalDeadline) {
+      dataToUpdate.savingsGoalDeadline = updateData.savingsDeadline || updateData.savingsGoalDeadline;
     }
 
-    const user = users[userIndex];
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: dataToUpdate,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        monthlyIncome: true,
+        monthlyInvestmentCapacity: true,
+        investorProfile: true,
+        notificationDaysBefore: true,
+        savingsGoal: true,
+        savingsGoalDeadline: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
 
-    // Atualizar campos permitidos
-    if (updateData.name) user.name = updateData.name;
-    if (updateData.monthlyIncome !== undefined) user.monthlyIncome = updateData.monthlyIncome;
-    if (updateData.investmentProfile) (user as any).investmentProfile = updateData.investmentProfile;
-    if (updateData.investmentCapacity !== undefined) (user as any).investmentCapacity = updateData.investmentCapacity;
-    if (updateData.notificationDays !== undefined) (user as any).notificationDays = updateData.notificationDays;
-    if (updateData.savingsGoal !== undefined) (user as any).savingsGoal = updateData.savingsGoal;
-    if (updateData.savingsDeadline) (user as any).savingsDeadline = updateData.savingsDeadline;
-    if (updateData.investorProfile) (user as any).investmentProfile = updateData.investorProfile;
-
-    user.updatedAt = new Date();
-
-    this.db.save();
-
-    // Retornar usuário sem o hash da senha
-    const { passwordHash, resetToken, resetTokenExpiry, ...userWithoutSensitive } = user as any;
-    return userWithoutSensitive;
+    return updatedUser;
   }
 }

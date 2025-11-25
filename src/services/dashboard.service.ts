@@ -1,27 +1,4 @@
-import { DatabaseService } from './database.service';
-
-// Importar types localmente
-enum ExpenseStatus {
-  PENDING = 'PENDING',
-  PAID = 'PAID',
-  OVERDUE = 'OVERDUE'
-}
-
-enum ExpenseCategory {
-  HOUSING = 'HOUSING',
-  UTILITIES = 'UTILITIES',
-  FOOD = 'FOOD',
-  TRANSPORT = 'TRANSPORT',
-  HEALTHCARE = 'HEALTHCARE',
-  ENTERTAINMENT = 'ENTERTAINMENT',
-  EDUCATION = 'EDUCATION',
-  CLOTHING = 'CLOTHING',
-  PERSONAL_CARE = 'PERSONAL_CARE',
-  INSURANCE = 'INSURANCE',
-  DEBT = 'DEBT',
-  SAVINGS = 'SAVINGS',
-  OTHER = 'OTHER'
-}
+import { prisma } from './prisma.service';
 
 interface Dashboard {
   availableBalance: number;
@@ -39,7 +16,6 @@ interface Dashboard {
 }
 
 export class DashboardService {
-  private db = DatabaseService.getInstance();
 
   private getExpenseStatus(expense: any, dueDate: string | Date): string {
     if (expense.isPaid) {
@@ -57,49 +33,56 @@ export class DashboardService {
   }
 
   async getMonthlyDashboard(userId: string): Promise<Dashboard> {
-    const user = this.db.getUsers().find(u => u.id === userId);
-    const expenses = this.db.getExpenses().filter(e => e.userId === userId);
-    const investments = this.db.getInvestments().filter(i => i.userId === userId);
-    
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     const referenceMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
 
-    // Filtrar despesas do mês atual usando referenceMonth
-    const monthlyExpenses = expenses.filter(e => e.referenceMonth === referenceMonth);
+    // Buscar usuário
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
-    const totalExpenses = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+    // Buscar despesas do mês atual
+    const monthlyExpenses = await prisma.expense.findMany({
+      where: {
+        userId,
+        referenceMonth,
+        isRecurring: false
+      }
+    });
+
+    // Buscar investimentos
+    const investments = await prisma.investment.findMany({
+      where: { userId }
+    });
+
+    const totalExpenses = monthlyExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
     const pendingExpenses = monthlyExpenses
       .filter(e => !e.isPaid)
-      .reduce((sum, e) => sum + e.amount, 0);
-    const monthlyIncome = user?.monthlyIncome || 0;
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+    const monthlyIncome = Number(user?.monthlyIncome) || 0;
     const availableBalance = monthlyIncome - totalExpenses;
 
     // Calcular total de investimentos (valor atual)
     const totalInvestments = investments.reduce((sum, investment) => {
-      const value = investment.currentValue || investment.amount || 0;
+      const value = Number(investment.currentValue || investment.amount || 0);
       return sum + value;
     }, 0);
 
     // Próximas despesas (não pagas) ordenadas por data de vencimento
     const upcomingExpensesList = monthlyExpenses
       .filter(e => !e.isPaid)
-      .sort((a, b) => {
-        const dateA = new Date(a.dueDate || a.createdAt);
-        const dateB = new Date(b.dueDate || b.createdAt);
-        return dateA.getTime() - dateB.getTime();
-      })
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
       .slice(0, 5)
       .map(e => {
-        const dueDate = e.dueDate || e.createdAt;
-        const status = this.getExpenseStatus(e, dueDate);
+        const status = this.getExpenseStatus(e, e.dueDate);
         
         return {
           id: e.id,
           title: e.title,
-          amount: e.amount,
-          dueDate: typeof dueDate === 'string' ? dueDate : dueDate.toISOString(),
+          amount: Number(e.amount),
+          dueDate: e.dueDate.toISOString(),
           category: e.category,
           status: status as 'pending' | 'paid' | 'overdue'
         };

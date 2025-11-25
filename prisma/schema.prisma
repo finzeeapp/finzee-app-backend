@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                        String    @id @default(uuid())
+  email                     String    @unique
+  name                      String
+  passwordHash              String?
+  monthlyIncome             Float?
+  monthlyInvestmentCapacity Float?
+  investorProfile           String?   @db.VarChar(20)
+  notificationDaysBefore    Int?      @default(3)
+  savingsGoal               Float?
+  savingsGoalDeadline       DateTime?
+  resetToken                String?
+  resetTokenExpiry          DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  // Relations
+  expenses      Expense[]
+  investments   Investment[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Expense {
+  id                 String    @id @default(uuid())
+  userId             String
+  title              String
+  description        String?
+  amount             Float
+  category           String
+  type               String
+  dueDate            DateTime
+  dueDay             Int?
+  status             String    @default("PENDING")
+  isPaid             Boolean   @default(false)
+  paymentDate        DateTime?
+  receiptUrl         String?
+  installments       Int?
+  currentInstallment Int?
+  totalInstallments  Int?
+  referenceMonth     String?
+  isRecurring        Boolean?  @default(false)
+  isGenerated        Boolean?  @default(false)
+  parentExpenseId    String?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent Expense?  @relation("ExpenseRecurrence", fields: [parentExpenseId], references: [id], onDelete: SetNull)
+  children Expense[] @relation("ExpenseRecurrence")
+
+  @@index([userId])
+  @@index([parentExpenseId])
+  @@index([referenceMonth])
+  @@map("expenses")
+}
+
+model Investment {
+  id             String    @id @default(uuid())
+  userId         String
+  name           String
+  type           String
+  institution    String
+  amount         Float
+  currentValue   Float?
+  investmentDate DateTime
+  maturityDate   DateTime?
+  yieldRate      Float?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("investments")
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String
+  message         String
+  type            String
+  read            Boolean  @default(false)
+  relatedEntityId String?
+  createdAt       DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@map("notifications")
+}
