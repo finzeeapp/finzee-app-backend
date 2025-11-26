@@ -41,7 +41,11 @@ export class DashboardService {
 
     // Buscar usuário
     const user = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId },
+      select: {
+        monthlyIncome: true,
+        monthlyInvestmentCapacity: true
+      }
     });
 
     // Buscar despesas do mês atual

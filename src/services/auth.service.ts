@@ -21,7 +21,8 @@ export class AuthService {
   }): Promise<{ token: string; user: UserResponse }> {
     // Verificar se o email já existe
     const existingUser = await prisma.user.findUnique({
-      where: { email: userData.email }
+      where: { email: userData.email },
+      select: { id: true }
     });
     
     if (existingUser) {
@@ -117,7 +118,8 @@ export class AuthService {
 
   async forgotPassword(email: string): Promise<{ message: string }> {
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
+      select: { id: true, email: true }
     });
 
     if (!user) {

@@ -78,7 +78,12 @@ export class InvestmentService {
 
   async getSuggestions(userId: string): Promise<any[]> {
     const user = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId },
+      select: {
+        monthlyIncome: true,
+        monthlyInvestmentCapacity: true,
+        investorProfile: true
+      }
     });
 
     const expenses = await prisma.expense.findMany({
