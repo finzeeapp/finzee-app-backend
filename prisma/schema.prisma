@@ -21,6 +21,7 @@ model User {
   notificationDaysBefore    Int?      @default(3)
   savingsGoal               Float?
   savingsGoalDeadline       DateTime?
+  currency                  String?   @default("BRL") @db.VarChar(3)
   resetToken                String?
   resetTokenExpiry          DateTime?
   createdAt                 DateTime  @default(now())
