@@ -7,9 +7,11 @@ export class DashboardController {
 
   async getMonthlyDashboard(req: AuthRequest, res: Response): Promise<void> {
     try {
-      // Usar o userId real do banco para testes
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const dashboard = await this.dashboardService.getMonthlyDashboard(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const dashboard = await this.dashboardService.getMonthlyDashboard(req.userId);
       res.json(dashboard);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

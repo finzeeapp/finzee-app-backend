@@ -6,8 +6,8 @@ import { upload } from '../middleware/upload.middleware';
 const router = Router();
 const expenseController = new ExpenseController();
 
-// Comentado temporariamente para testes
-// router.use(authMiddleware);
+// Aplicar middleware de autenticação em todas as rotas
+router.use(authMiddleware);
 
 router.post('/', (req, res) => expenseController.create(req, res));
 router.get('/', (req, res) => expenseController.findAll(req, res));

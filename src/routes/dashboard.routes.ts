@@ -5,8 +5,8 @@ import { authMiddleware } from '../middleware/auth.middleware';
 const router = Router();
 const dashboardController = new DashboardController();
 
-// Comentado temporariamente para testes
-// router.use(authMiddleware);
+// Aplicar middleware de autenticação em todas as rotas
+router.use(authMiddleware);
 
 router.get('/', (req, res) => dashboardController.getMonthlyDashboard(req, res));
 

@@ -9,10 +9,13 @@ export class ExpenseController {
 
   async create(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
       const expense = await this.expenseService.create({
         ...req.body,
-        userId: userId
+        userId: req.userId
       });
       res.status(201).json(expense);
     } catch (error: any) {
@@ -22,8 +25,11 @@ export class ExpenseController {
 
   async findAll(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const expenses = await this.expenseService.findAll(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const expenses = await this.expenseService.findAll(req.userId);
       res.json(expenses);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -87,7 +93,10 @@ export class ExpenseController {
 
   async markAsPaid(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
       const paymentInfo = {
         paymentMethod: req.body.paymentMethod,
         paidAt: req.body.paidAt
@@ -95,7 +104,7 @@ export class ExpenseController {
       
       const expense = await this.expenseService.markAsPaid(
         req.params.id,
-        userId,
+        req.userId,
         paymentInfo
       );
       res.json(expense);
@@ -109,8 +118,11 @@ export class ExpenseController {
    */
   async findCurrentMonth(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const expenses = await this.expenseService.findCurrentMonthExpenses(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const expenses = await this.expenseService.findCurrentMonthExpenses(req.userId);
       res.json(expenses);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -122,8 +134,11 @@ export class ExpenseController {
    */
   async findRecurring(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const expenses = await this.expenseService.findRecurringExpenses(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const expenses = await this.expenseService.findRecurringExpenses(req.userId);
       res.json(expenses);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -135,10 +150,13 @@ export class ExpenseController {
    */
   async createRecurring(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
       const expense = await this.expenseService.createRecurringExpense({
         ...req.body,
-        userId: userId
+        userId: req.userId
       });
       res.status(201).json(expense);
     } catch (error: any) {
@@ -152,8 +170,11 @@ export class ExpenseController {
    */
   async autoGeneratePendencies(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const result = await this.autoPendencyService.checkAndGeneratePendencies(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const result = await this.autoPendencyService.checkAndGeneratePendencies(req.userId);
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

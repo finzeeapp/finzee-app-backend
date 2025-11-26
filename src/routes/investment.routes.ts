@@ -5,8 +5,8 @@ import { authMiddleware } from '../middleware/auth.middleware';
 const router = Router();
 const investmentController = new InvestmentController();
 
-// Comentado temporariamente para testes - descomentar em produção
-// router.use(authMiddleware);
+// Aplicar middleware de autenticação em todas as rotas
+router.use(authMiddleware);
 
 router.post('/', (req, res) => investmentController.create(req, res));
 router.get('/', (req, res) => investmentController.findAll(req, res));

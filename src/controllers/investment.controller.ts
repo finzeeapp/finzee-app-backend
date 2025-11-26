@@ -7,10 +7,13 @@ export class InvestmentController {
 
   async create(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
       const investment = await this.investmentService.create({
         ...req.body,
-        userId
+        userId: req.userId
       });
       res.status(201).json(investment);
     } catch (error: any) {
@@ -21,8 +24,11 @@ export class InvestmentController {
 
   async findAll(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const investments = await this.investmentService.findAll(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const investments = await this.investmentService.findAll(req.userId);
       res.json(investments);
     } catch (error: any) {
       console.error('Erro ao buscar investimentos:', error);
@@ -32,8 +38,11 @@ export class InvestmentController {
 
   async getSuggestions(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const suggestions = await this.investmentService.getSuggestions(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const suggestions = await this.investmentService.getSuggestions(req.userId);
       res.json(suggestions);
     } catch (error: any) {
       console.error('Erro ao buscar sugestões:', error);
@@ -43,8 +52,11 @@ export class InvestmentController {
 
   async delete(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      await this.investmentService.delete(req.params.id, userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      await this.investmentService.delete(req.params.id, req.userId);
       res.status(204).send();
     } catch (error: any) {
       console.error('Erro ao excluir investimento:', error);

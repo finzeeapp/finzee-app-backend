@@ -69,8 +69,11 @@ export class AuthController {
 
   async getMe(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const user = await this.authService.getUserById(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const user = await this.authService.getUserById(req.userId);
       res.json(user);
     } catch (error: any) {
       console.error('Erro ao buscar usuário:', error);

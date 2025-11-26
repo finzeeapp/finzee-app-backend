@@ -7,8 +7,11 @@ export class NotificationController {
 
   async findAll(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      const notifications = await this.notificationService.findAll(userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      const notifications = await this.notificationService.findAll(req.userId);
       res.json(notifications);
     } catch (error: any) {
       console.error('Erro ao buscar notificações:', error);
@@ -18,8 +21,11 @@ export class NotificationController {
 
   async markAsRead(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.userId || 'cc05eca2-49ff-4ea7-9bb8-b71812d09130';
-      await this.notificationService.markAsRead(req.params.id, userId);
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      await this.notificationService.markAsRead(req.params.id, req.userId);
       res.status(204).send();
     } catch (error: any) {
       console.error('Erro ao marcar notificação como lida:', error);
