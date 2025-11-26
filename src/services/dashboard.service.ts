@@ -1,6 +1,7 @@
 import { prisma } from './prisma.service';
 
 interface Dashboard {
+  monthlyIncome: number;
   availableBalance: number;
   totalExpenses: number;
   pendingExpenses: number;
@@ -89,6 +90,7 @@ export class DashboardService {
       });
 
     return {
+      monthlyIncome: parseFloat(monthlyIncome.toFixed(2)),
       availableBalance: parseFloat(availableBalance.toFixed(2)),
       totalExpenses: parseFloat(totalExpenses.toFixed(2)),
       pendingExpenses: parseFloat(pendingExpenses.toFixed(2)),

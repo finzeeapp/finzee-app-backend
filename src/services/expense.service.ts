@@ -12,6 +12,16 @@ export class ExpenseService {
   }
 
   async create(data: any): Promise<any> {
+    const dueDate = new Date(data.dueDate);
+    
+    // Calcular referenceMonth baseado na dueDate se não for fornecido
+    let referenceMonth = data.referenceMonth;
+    if (!referenceMonth && !data.isRecurring) {
+      const year = dueDate.getFullYear();
+      const month = dueDate.getMonth() + 1;
+      referenceMonth = `${year}-${month.toString().padStart(2, '0')}`;
+    }
+
     const expense = await prisma.expense.create({
       data: {
         userId: data.userId,
@@ -20,13 +30,13 @@ export class ExpenseService {
         amount: data.amount,
         category: data.category,
         type: data.type,
-        dueDate: new Date(data.dueDate),
-        dueDay: data.dueDay || data.recurrenceDay,
-        status: 'PENDING',
+        dueDate: dueDate,
+        dueDay: data.dueDay || data.recurrenceDay || dueDate.getDate(),
+        status: data.isRecurring ? 'TEMPLATE' : 'PENDING',
         isPaid: false,
         totalInstallments: data.totalInstallments,
         currentInstallment: data.currentInstallment,
-        referenceMonth: data.referenceMonth,
+        referenceMonth: referenceMonth,
         isRecurring: data.isRecurring || false,
         isGenerated: data.isGenerated || false,
         parentExpenseId: data.parentExpenseId,
