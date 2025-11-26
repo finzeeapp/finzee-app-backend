@@ -60,7 +60,13 @@ export class AuthService {
     password: string;
   }): Promise<{ token: string; user: UserResponse }> {
     const user = await prisma.user.findUnique({
-      where: { email: credentials.email }
+      where: { email: credentials.email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        passwordHash: true
+      }
     });
 
     if (!user || !user.passwordHash) {
@@ -189,7 +195,8 @@ export class AuthService {
         savingsGoal: true,
         savingsGoalDeadline: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        currency: true
       }
     });
 
@@ -223,6 +230,7 @@ export class AuthService {
       dataToUpdate.notificationDaysBefore = Number(updateData.notificationDays || updateData.notificationDaysBefore);
     }
     if (updateData.savingsGoal !== undefined) dataToUpdate.savingsGoal = Number(updateData.savingsGoal);
+    if (updateData.currency) dataToUpdate.currency = updateData.currency;
     if (updateData.savingsDeadline || updateData.savingsGoalDeadline) {
       const deadline = updateData.savingsDeadline || updateData.savingsGoalDeadline;
       dataToUpdate.savingsGoalDeadline = deadline ? new Date(deadline) : null;
