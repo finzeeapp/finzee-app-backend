@@ -13,15 +13,22 @@ export class ExpenseService {
 
   async create(data: any): Promise<any> {
     const dueDate = new Date(data.dueDate);
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Determinar se é uma despesa recorrente/registrada
+    const isRecurring = data.isRecurring || data.type === 'fixed' || data.type === 'recurrent' || 
+                       (data.type === 'installment' && data.totalInstallments > 1);
     
     // Calcular referenceMonth baseado na dueDate se não for fornecido
     let referenceMonth = data.referenceMonth;
-    if (!referenceMonth && !data.isRecurring) {
+    if (!referenceMonth && !isRecurring) {
       const year = dueDate.getFullYear();
       const month = dueDate.getMonth() + 1;
       referenceMonth = `${year}-${month.toString().padStart(2, '0')}`;
     }
 
+    // Criar a despesa (template se for recorrente)
     const expense = await prisma.expense.create({
       data: {
         userId: data.userId,
@@ -32,19 +39,121 @@ export class ExpenseService {
         type: data.type,
         dueDate: dueDate,
         dueDay: data.dueDay || data.recurrenceDay || dueDate.getDate(),
-        status: data.isRecurring ? 'TEMPLATE' : 'PENDING',
+        status: isRecurring ? 'TEMPLATE' : 'PENDING',
         isPaid: false,
         totalInstallments: data.totalInstallments,
         currentInstallment: data.currentInstallment,
         referenceMonth: referenceMonth,
-        isRecurring: data.isRecurring || false,
+        isRecurring: isRecurring,
         isGenerated: data.isGenerated || false,
         parentExpenseId: data.parentExpenseId,
         notes: data.notes
       }
     });
 
+    // Se for recorrente, gerar automaticamente a instância para o mês atual
+    if (isRecurring && !data.isGenerated) {
+      await this.generateInstanceForMonth(expense, currentMonth);
+    }
+
     return expense;
+  }
+
+  /**
+   * Gera uma instância de despesa para um mês específico
+   */
+  private async generateInstanceForMonth(baseExpense: any, targetMonth: string): Promise<any | null> {
+    try {
+      // Verificar se já existe uma instância para este mês
+      const existing = await prisma.expense.findFirst({
+        where: {
+          parentExpenseId: baseExpense.id,
+          referenceMonth: targetMonth
+        }
+      });
+
+      if (existing) {
+        console.log(`⏭️  Instância já existe para ${baseExpense.title} no mês ${targetMonth}`);
+        return null;
+      }
+
+      // Para parceladas, verificar se deve gerar baseado na data de início
+      if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
+        const startDate = new Date(baseExpense.dueDate);
+        const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        // Se o mês atual é anterior ao mês de início, não gera
+        if (targetMonth < startMonth) {
+          console.log(`⏭️  Ainda não é o mês de iniciar ${baseExpense.title}`);
+          return null;
+        }
+      }
+
+      // Calcular data de vencimento
+      const [year, month] = targetMonth.split('-').map(Number);
+      const dueDay = baseExpense.dueDay || 1;
+      
+      // Ajustar dia se for maior que o último dia do mês
+      const lastDayOfMonth = new Date(year, month, 0).getDate();
+      const adjustedDueDay = Math.min(dueDay, lastDayOfMonth);
+      
+      const dueDate = new Date(year, month - 1, adjustedDueDay);
+
+      // Para parceladas, calcular número da parcela e valor
+      let title = baseExpense.title;
+      let amount = baseExpense.amount;
+      let currentInstallment = undefined;
+      
+      if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
+        const generatedCount = await prisma.expense.count({
+          where: {
+            parentExpenseId: baseExpense.id,
+            isGenerated: true
+          }
+        });
+        
+        currentInstallment = generatedCount + 1;
+        
+        // Se já gerou todas as parcelas, não gera mais
+        if (currentInstallment > baseExpense.totalInstallments) {
+          console.log(`✅ Todas as parcelas de ${baseExpense.title} já foram geradas`);
+          return null;
+        }
+        
+        amount = baseExpense.amount / baseExpense.totalInstallments;
+        title = `${baseExpense.title} (${currentInstallment}/${baseExpense.totalInstallments})`;
+      }
+
+      // Criar instância para o mês
+      const instance = await prisma.expense.create({
+        data: {
+          userId: baseExpense.userId,
+          title,
+          description: baseExpense.description,
+          amount: Number(amount.toFixed(2)),
+          category: baseExpense.category,
+          type: baseExpense.type,
+          dueDate,
+          dueDay: adjustedDueDay,
+          status: 'PENDING',
+          isPaid: false,
+          referenceMonth: targetMonth,
+          isRecurring: false,
+          isGenerated: true,
+          parentExpenseId: baseExpense.id,
+          currentInstallment,
+          totalInstallments: baseExpense.totalInstallments,
+          notes: baseExpense.notes
+        }
+      });
+
+      console.log(`✅ Instância gerada: ${instance.title} - Vencimento: ${instance.dueDate}`);
+      return instance;
+      
+    } catch (error: any) {
+      console.error(`❌ Erro ao gerar instância de ${baseExpense.title}:`, error);
+      return null;
+    }
   }
 
   async findAll(userId: string): Promise<any[]> {
@@ -187,5 +296,73 @@ export class ExpenseService {
         notes: data.notes
       }
     });
+  }
+
+  /**
+   * Busca despesas por aba/filtro
+   */
+  async findByTab(userId: string, tab: 'pending' | 'paid' | 'registered' | 'recurrent' | 'installment'): Promise<any[]> {
+    const currentMonth = this.getCurrentMonth();
+
+    switch (tab) {
+      case 'pending':
+        // Despesas do mês atual não pagas
+        return prisma.expense.findMany({
+          where: {
+            userId,
+            referenceMonth: currentMonth,
+            isPaid: false,
+            isRecurring: false
+          },
+          orderBy: { dueDate: 'asc' }
+        });
+
+      case 'paid':
+        // Despesas do mês atual já pagas
+        return prisma.expense.findMany({
+          where: {
+            userId,
+            referenceMonth: currentMonth,
+            isPaid: true,
+            isRecurring: false
+          },
+          orderBy: { paymentDate: 'desc' }
+        });
+
+      case 'registered':
+        // Todas as despesas registradas (templates)
+        return prisma.expense.findMany({
+          where: {
+            userId,
+            isRecurring: true
+          },
+          orderBy: { dueDay: 'asc' }
+        });
+
+      case 'recurrent':
+        // Apenas despesas fixas e recorrentes
+        return prisma.expense.findMany({
+          where: {
+            userId,
+            isRecurring: true,
+            type: { in: ['fixed', 'recurrent'] }
+          },
+          orderBy: { dueDay: 'asc' }
+        });
+
+      case 'installment':
+        // Apenas despesas parceladas (templates)
+        return prisma.expense.findMany({
+          where: {
+            userId,
+            isRecurring: true,
+            type: 'installment'
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+
+      default:
+        return [];
+    }
   }
 }

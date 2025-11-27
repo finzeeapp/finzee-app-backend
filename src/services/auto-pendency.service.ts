@@ -1,40 +1,10 @@
-import { DatabaseService } from './database.service';
-import { ExpenseService } from './expense.service';
+import { prisma } from './prisma.service';
 import { NotificationService } from './notification.service';
-import { v4 as uuidv4 } from 'uuid';
-
-interface Expense {
-  id: string;
-  userId: string;
-  title: string;
-  description?: string;
-  amount: number;
-  category: string;
-  type: string;
-  dueDate: Date | string;
-  dueDay?: number;
-  status: string;
-  isPaid: boolean;
-  paymentDate?: Date | string;
-  receiptUrl?: string;
-  installments?: number;
-  currentInstallment?: number;
-  totalInstallments?: number;
-  referenceMonth?: string;
-  isRecurring?: boolean;
-  isGenerated?: boolean;
-  parentExpenseId?: string;
-  notes?: string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}
 
 /**
  * Serviço responsável por gerar automaticamente pendências quando o usuário acessa a plataforma
  */
 export class AutoPendencyService {
-  private db = DatabaseService.getInstance();
-  private expenseService = new ExpenseService();
   private notificationService = new NotificationService();
 
   /**
@@ -53,7 +23,6 @@ export class AutoPendencyService {
    */
   async checkAndGeneratePendencies(userId: string): Promise<{
     generated: number;
-    removed: number;
     message: string;
   }> {
     console.log(`🔍 Verificando pendências para usuário ${userId}...`);
@@ -62,49 +31,29 @@ export class AutoPendencyService {
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     
     let generatedCount = 0;
-    let removedCount = 0;
 
     try {
       // 1. Buscar todas as despesas registradas (templates) do usuário
-      const registeredExpenses = this.db.getExpenses().filter(e => 
-        e.userId === userId && 
-        e.isRecurring === true
-      );
+      const registeredExpenses = await prisma.expense.findMany({
+        where: {
+          userId,
+          isRecurring: true
+        }
+      });
 
       console.log(`📋 Total de despesas registradas: ${registeredExpenses.length}`);
 
-      // 2. Processar despesas fixas e recorrentes
-      const fixedAndRecurrent = registeredExpenses.filter(e => 
-        e.type === 'fixed' || e.type === 'recurrent'
-      );
-
-      for (const expense of fixedAndRecurrent) {
+      // 2. Processar cada despesa registrada
+      for (const expense of registeredExpenses) {
         const wasGenerated = await this.generateMonthlyExpense(expense, currentMonth);
         if (wasGenerated) generatedCount++;
       }
 
-      // 3. Processar despesas parceladas
-      const installmentExpenses = registeredExpenses.filter(e => 
-        e.type === 'installment'
-      );
-
-      for (const expense of installmentExpenses) {
-        const result = await this.processInstallmentExpense(expense, currentMonth);
-        if (result.generated) generatedCount++;
-        if (result.shouldRemoveTemplate) {
-          // Remove a despesa template se todas as parcelas já foram geradas
-          this.db.deleteExpense(expense.id);
-          removedCount++;
-          console.log(`🗑️ Despesa parcelada removida (todas parcelas geradas): ${expense.title}`);
-        }
-      }
-
-      const message = this.buildResultMessage(generatedCount, removedCount);
+      const message = this.buildResultMessage(generatedCount);
       console.log(`✅ ${message}`);
 
       return {
         generated: generatedCount,
-        removed: removedCount,
         message
       };
 
@@ -115,19 +64,54 @@ export class AutoPendencyService {
   }
 
   /**
-   * Gera uma despesa mensal (fixa ou recorrente) se ainda não existir para o mês atual
+   * Gera uma despesa mensal (fixa, recorrente ou parcelada) se ainda não existir para o mês atual
    */
-  private async generateMonthlyExpense(baseExpense: Expense, currentMonth: string): Promise<boolean> {
+  private async generateMonthlyExpense(baseExpense: any, currentMonth: string): Promise<boolean> {
     try {
       // Verificar se já existe uma despesa gerada para este mês
-      const existingExpense = this.db.getExpenses().find(e => 
-        e.parentExpenseId === baseExpense.id && 
-        e.referenceMonth === currentMonth
-      );
+      const existingExpense = await prisma.expense.findFirst({
+        where: {
+          parentExpenseId: baseExpense.id,
+          referenceMonth: currentMonth
+        }
+      });
 
       if (existingExpense) {
         console.log(`⏭️  Despesa já existe para ${baseExpense.title} no mês ${currentMonth}`);
         return false;
+      }
+
+      // Para parceladas, verificar se deve gerar baseado na data de início
+      if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
+        // Buscar quantas parcelas já foram geradas
+        const generatedCount = await prisma.expense.count({
+          where: {
+            parentExpenseId: baseExpense.id,
+            isGenerated: true
+          }
+        });
+
+        // Se já gerou todas as parcelas, não gera mais
+        if (generatedCount >= baseExpense.totalInstallments) {
+          console.log(`✅ Todas as parcelas de ${baseExpense.title} já foram geradas`);
+          return false;
+        }
+
+        // Verificar se a primeira parcela deve ser no mês atual
+        const startDate = new Date(baseExpense.dueDate);
+        const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        // Calcular qual mês deveria ter essa parcela
+        const [startYear, startMonthNum] = startMonth.split('-').map(Number);
+        const [currentYear, currentMonthNum] = currentMonth.split('-').map(Number);
+        
+        const monthsDiff = (currentYear - startYear) * 12 + (currentMonthNum - startMonthNum);
+        
+        // Se a diferença de meses é menor que quantas parcelas já foram geradas, não gera ainda
+        if (monthsDiff < generatedCount) {
+          console.log(`⏭️  Ainda não é o mês de gerar parcela ${generatedCount + 1} de ${baseExpense.title}`);
+          return false;
+        }
       }
 
       // Calcular data de vencimento
@@ -141,29 +125,47 @@ export class AutoPendencyService {
       // Formatar data sem problema de timezone
       const dueDate = this.formatDateLocal(year, month, adjustedDueDay);
 
-      // Criar nova despesa para o mês atual
-      const newExpense: Expense = {
-        id: uuidv4(),
-        userId: baseExpense.userId,
-        title: baseExpense.title,
-        description: baseExpense.description,
-        amount: baseExpense.amount,
-        category: baseExpense.category,
-        type: baseExpense.type,
-        dueDate: dueDate,
-        dueDay: adjustedDueDay,
-        status: 'PENDING',
-        isPaid: false,
-        referenceMonth: currentMonth,
-        isRecurring: false,
-        isGenerated: true,
-        parentExpenseId: baseExpense.id,
-        notes: baseExpense.notes,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      // Para parceladas, calcular número da parcela e valor
+      let title = baseExpense.title;
+      let amount = baseExpense.amount;
+      let currentInstallment = undefined;
+      
+      if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
+        const generatedCount = await prisma.expense.count({
+          where: {
+            parentExpenseId: baseExpense.id,
+            isGenerated: true
+          }
+        });
+        
+        currentInstallment = generatedCount + 1;
+        amount = baseExpense.amount / baseExpense.totalInstallments;
+        title = `${baseExpense.title} (${currentInstallment}/${baseExpense.totalInstallments})`;
+      }
 
-      this.db.addExpense(newExpense);
+      // Criar nova despesa para o mês atual
+      const newExpense = await prisma.expense.create({
+        data: {
+          userId: baseExpense.userId,
+          title,
+          description: baseExpense.description,
+          amount: Number(amount.toFixed(2)),
+          category: baseExpense.category,
+          type: baseExpense.type,
+          dueDate: new Date(dueDate),
+          dueDay: adjustedDueDay,
+          status: 'PENDING',
+          isPaid: false,
+          referenceMonth: currentMonth,
+          isRecurring: false,
+          isGenerated: true,
+          parentExpenseId: baseExpense.id,
+          currentInstallment,
+          totalInstallments: baseExpense.totalInstallments,
+          notes: baseExpense.notes
+        }
+      });
+
       console.log(`✅ Despesa gerada: ${newExpense.title} - Vencimento: ${newExpense.dueDate}`);
 
       // Criar notificação
@@ -176,122 +178,12 @@ export class AutoPendencyService {
     }
   }
 
-  /**
-   * Processa uma despesa parcelada
-   * Retorna se gerou uma nova parcela e se deve remover o template
-   */
-  private async processInstallmentExpense(
-    baseExpense: Expense, 
-    currentMonth: string
-  ): Promise<{ generated: boolean; shouldRemoveTemplate: boolean }> {
-    try {
-      const totalInstallments = baseExpense.totalInstallments || 1;
 
-      // Buscar todas as parcelas já geradas
-      const generatedInstallments = this.db.getExpenses().filter(e => 
-        e.parentExpenseId === baseExpense.id && 
-        e.type === 'installment' &&
-        e.isGenerated === true
-      );
-
-      const nextInstallmentNumber = generatedInstallments.length + 1;
-
-      console.log(`📊 ${baseExpense.title}: ${generatedInstallments.length}/${totalInstallments} parcelas geradas`);
-
-      // Verificar se todas as parcelas já foram geradas
-      if (nextInstallmentNumber > totalInstallments) {
-        console.log(`✅ Todas as parcelas de ${baseExpense.title} já foram geradas`);
-        
-        // Verificar se a última parcela está na aba de pendentes
-        const lastInstallment = generatedInstallments.find(e => 
-          e.currentInstallment === totalInstallments
-        );
-
-        if (lastInstallment) {
-          console.log(`🔍 Última parcela encontrada, deve remover template: ${lastInstallment.title}`);
-          return { generated: false, shouldRemoveTemplate: true };
-        }
-
-        return { generated: false, shouldRemoveTemplate: false };
-      }
-
-      // Verificar se já existe uma parcela para o mês atual
-      const existingInstallment = this.db.getExpenses().find(e => 
-        e.parentExpenseId === baseExpense.id && 
-        e.referenceMonth === currentMonth
-      );
-
-      if (existingInstallment) {
-        console.log(`⏭️  Parcela já existe para ${baseExpense.title} no mês ${currentMonth}`);
-        
-        // Se é a última parcela, marcar para remover template
-        if (nextInstallmentNumber > totalInstallments) {
-          return { generated: false, shouldRemoveTemplate: true };
-        }
-        
-        return { generated: false, shouldRemoveTemplate: false };
-      }
-
-      // Calcular data de vencimento
-      const [year, month] = currentMonth.split('-').map(Number);
-      const dueDay = baseExpense.dueDay || 1;
-      
-      // Ajustar dia se for maior que o último dia do mês
-      const lastDayOfMonth = new Date(year, month, 0).getDate();
-      const adjustedDueDay = Math.min(dueDay, lastDayOfMonth);
-      
-      // Formatar data sem problema de timezone
-      const dueDate = this.formatDateLocal(year, month, adjustedDueDay);
-
-      // Calcular valor da parcela
-      const installmentAmount = baseExpense.amount / totalInstallments;
-
-      // Criar nova parcela para o mês atual
-      const newExpense: Expense = {
-        id: uuidv4(),
-        userId: baseExpense.userId,
-        title: `${baseExpense.title} (${nextInstallmentNumber}/${totalInstallments})`,
-        description: baseExpense.description,
-        amount: Number(installmentAmount.toFixed(2)),
-        category: baseExpense.category,
-        type: 'installment',
-        dueDate: dueDate,
-        dueDay: adjustedDueDay,
-        status: 'PENDING',
-        isPaid: false,
-        installments: nextInstallmentNumber,
-        currentInstallment: nextInstallmentNumber,
-        totalInstallments: totalInstallments,
-        referenceMonth: currentMonth,
-        isRecurring: false,
-        isGenerated: true,
-        parentExpenseId: baseExpense.id,
-        notes: baseExpense.notes,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      this.db.addExpense(newExpense);
-      console.log(`✅ Parcela gerada: ${newExpense.title} - Valor: R$ ${newExpense.amount} - Vencimento: ${newExpense.dueDate}`);
-
-      // Criar notificação
-      await this.createExpenseNotification(newExpense);
-
-      // Se foi a última parcela, marcar para remover template
-      const shouldRemoveTemplate = nextInstallmentNumber === totalInstallments;
-
-      return { generated: true, shouldRemoveTemplate };
-
-    } catch (error: any) {
-      console.error(`❌ Erro ao processar parcela de ${baseExpense.title}:`, error);
-      return { generated: false, shouldRemoveTemplate: false };
-    }
-  }
 
   /**
    * Cria notificação para uma nova despesa gerada
    */
-  private async createExpenseNotification(expense: Expense): Promise<void> {
+  private async createExpenseNotification(expense: any): Promise<void> {
     try {
       const notification = {
         userId: expense.userId,
@@ -310,21 +202,11 @@ export class AutoPendencyService {
   /**
    * Constrói mensagem de resultado
    */
-  private buildResultMessage(generated: number, removed: number): string {
-    const parts: string[] = [];
-    
-    if (generated > 0) {
-      parts.push(`${generated} pendência${generated > 1 ? 's' : ''} gerada${generated > 1 ? 's' : ''}`);
+  private buildResultMessage(generated: number): string {
+    if (generated === 0) {
+      return 'Nenhuma pendência nova para gerar';
     }
     
-    if (removed > 0) {
-      parts.push(`${removed} despesa${removed > 1 ? 's' : ''} parcelada${removed > 1 ? 's' : ''} finalizada${removed > 1 ? 's' : ''}`);
-    }
-    
-    if (parts.length === 0) {
-      return 'Nenhuma pendência pendente para gerar';
-    }
-    
-    return parts.join(' e ');
+    return `${generated} pendência${generated > 1 ? 's' : ''} gerada${generated > 1 ? 's' : ''}`;
   }
 }

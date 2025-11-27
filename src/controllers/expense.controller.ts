@@ -180,4 +180,29 @@ export class ExpenseController {
       res.status(400).json({ error: error.message });
     }
   }
+
+  /**
+   * Busca despesas por aba/filtro
+   */
+  async findByTab(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+      
+      const tab = req.params.tab as 'pending' | 'paid' | 'registered' | 'recurrent' | 'installment';
+      const validTabs = ['pending', 'paid', 'registered', 'recurrent', 'installment'];
+      
+      if (!validTabs.includes(tab)) {
+        res.status(400).json({ error: 'Aba inválida' });
+        return;
+      }
+      
+      const expenses = await this.expenseService.findByTab(req.userId, tab);
+      res.json(expenses);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
 }

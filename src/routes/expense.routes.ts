@@ -11,6 +11,7 @@ router.use(authMiddleware);
 
 router.post('/', (req, res) => expenseController.create(req, res));
 router.get('/', (req, res) => expenseController.findAll(req, res));
+router.get('/by-tab/:tab', (req, res) => expenseController.findByTab(req, res));
 router.get('/current-month', (req, res) => expenseController.findCurrentMonth(req, res));
 router.get('/recurring', (req, res) => expenseController.findRecurring(req, res));
 router.post('/recurring', (req, res) => expenseController.createRecurring(req, res));
