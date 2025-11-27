@@ -105,18 +105,31 @@ export class ExpenseService {
       let currentInstallment = undefined;
       
       if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
-        const generatedCount = await prisma.expense.count({
+        // Calcular o número da parcela baseado na diferença de meses entre início e mês atual
+        const startDate = new Date(baseExpense.dueDate);
+        const [targetYear, targetMonthNum] = targetMonth.split('-').map(Number);
+        const startYear = startDate.getFullYear();
+        const startMonthNum = startDate.getMonth() + 1;
+        
+        const monthsDiff = (targetYear - startYear) * 12 + (targetMonthNum - startMonthNum);
+        currentInstallment = monthsDiff + 1;
+        
+        // Se já passou de todas as parcelas, não gera mais
+        if (currentInstallment > baseExpense.totalInstallments) {
+          console.log(`✅ Todas as parcelas de ${baseExpense.title} já foram geradas`);
+          return null;
+        }
+        
+        // Verificar se já existe essa parcela específica
+        const existingInstallment = await prisma.expense.findFirst({
           where: {
             parentExpenseId: baseExpense.id,
-            isGenerated: true
+            currentInstallment: currentInstallment
           }
         });
         
-        currentInstallment = generatedCount + 1;
-        
-        // Se já gerou todas as parcelas, não gera mais
-        if (currentInstallment > baseExpense.totalInstallments) {
-          console.log(`✅ Todas as parcelas de ${baseExpense.title} já foram geradas`);
+        if (existingInstallment) {
+          console.log(`⏭️  Parcela ${currentInstallment} já existe para ${baseExpense.title}`);
           return null;
         }
         

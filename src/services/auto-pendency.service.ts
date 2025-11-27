@@ -131,14 +131,28 @@ export class AutoPendencyService {
       let currentInstallment = undefined;
       
       if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
-        const generatedCount = await prisma.expense.count({
+        // Calcular o número da parcela baseado na diferença de meses
+        const startDate = new Date(baseExpense.dueDate);
+        const [targetYear, targetMonthNum] = currentMonth.split('-').map(Number);
+        const startYear = startDate.getFullYear();
+        const startMonthNum = startDate.getMonth() + 1;
+        
+        const monthsDiff = (targetYear - startYear) * 12 + (targetMonthNum - startMonthNum);
+        currentInstallment = monthsDiff + 1;
+        
+        // Verificar se já existe essa parcela específica
+        const existingInstallment = await prisma.expense.findFirst({
           where: {
             parentExpenseId: baseExpense.id,
-            isGenerated: true
+            currentInstallment: currentInstallment
           }
         });
         
-        currentInstallment = generatedCount + 1;
+        if (existingInstallment) {
+          console.log(`⏭️  Parcela ${currentInstallment} já existe para ${baseExpense.title}`);
+          return false;
+        }
+        
         amount = baseExpense.amount / baseExpense.totalInstallments;
         title = `${baseExpense.title} (${currentInstallment}/${baseExpense.totalInstallments})`;
       }
