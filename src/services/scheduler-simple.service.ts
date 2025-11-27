@@ -126,14 +126,14 @@ export class SchedulerService {
     console.log(`🔍 Verificando usuário ${userId} para o mês ${currentMonth}`);
     console.log(`📊 Total de despesas no banco: ${allExpenses.length}`);
 
-    // 1. Processar despesas fixas (recorrentes)
+    // 1. Processar despesas recorrentes
     const fixedExpenses = allExpenses.filter(e => 
       e.userId === userId &&
-      (e.type === 'fixed' || e.type === 'recurrent') && 
+      e.type === 'recurrent' && 
       e.isRecurring === true
     );
 
-    console.log(`🏠 Despesas fixas/recorrentes encontradas: ${fixedExpenses.length}`);
+    console.log(`🏠 Despesas recorrentes encontradas: ${fixedExpenses.length}`);
     fixedExpenses.forEach(e => console.log(`   - ${e.title} (${e.type})`));
 
     for (const expense of fixedExpenses) {
@@ -141,14 +141,14 @@ export class SchedulerService {
       if (generated) generatedCount++;
     }
 
-    // 2. Processar despesas parceladas
+    // 2. Processar despesas parceladas e financiamentos
     const installmentExpenses = allExpenses.filter(e => 
       e.userId === userId &&
-      e.type === 'installment' && 
+      (e.type === 'installment' || e.type === 'financing') && 
       e.isRecurring === true
     );
 
-    console.log(`💳 Despesas parceladas encontradas: ${installmentExpenses.length}`);
+    console.log(`💳 Despesas parceladas/financiamentos encontradas: ${installmentExpenses.length}`);
     installmentExpenses.forEach(e => console.log(`   - ${e.title} (${e.totalInstallments}x)`));
 
     for (const expense of installmentExpenses) {
@@ -242,7 +242,7 @@ export class SchedulerService {
       // Calcular qual parcela deve ser gerada
       const allInstallments = this.db.getExpenses().filter(e => 
         e.parentExpenseId === baseExpense.id && 
-        e.type === 'installment' &&
+        (e.type === 'installment' || e.type === 'financing') &&
         e.isGenerated === true
       );
 
@@ -277,7 +277,7 @@ export class SchedulerService {
         description: baseExpense.description,
         amount: Number(installmentAmount.toFixed(2)),
         category: baseExpense.category,
-        type: 'installment',
+        type: baseExpense.type, // Manter tipo original (installment ou financing),
         dueDate: dueDate,
         dueDay: adjustedDueDay,
         status: 'PENDING',

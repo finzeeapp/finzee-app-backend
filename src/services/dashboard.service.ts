@@ -83,11 +83,17 @@ export class DashboardService {
       .map(e => {
         const status = this.getExpenseStatus(e, e.dueDate);
         
+        // Formatar data como YYYY-MM-DD para evitar problemas de timezone
+        const year = e.dueDate.getFullYear();
+        const month = String(e.dueDate.getMonth() + 1).padStart(2, '0');
+        const day = String(e.dueDate.getDate()).padStart(2, '0');
+        const dateString = `${year}-${month}-${day}`;
+        
         return {
           id: e.id,
           title: e.title,
           amount: Number(e.amount),
-          dueDate: e.dueDate.toISOString(),
+          dueDate: dateString,
           category: e.category,
           status: status as 'pending' | 'paid' | 'overdue'
         };

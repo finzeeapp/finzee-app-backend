@@ -140,9 +140,9 @@ export class SchedulerService {
     const allExpenses = this.db.getExpenses().filter(e => e.userId === userId);
     let generatedCount = 0;
 
-    // 1. Processar despesas fixas (recorrentes)
+    // 1. Processar despesas recorrentes
     const fixedExpenses = allExpenses.filter(e => 
-      (e.type === 'fixed' || e.type === 'recurrent') && 
+      e.type === 'recurrent' && 
       e.isRecurring === true
     );
 
@@ -151,9 +151,9 @@ export class SchedulerService {
       if (generated) generatedCount++;
     }
 
-    // 2. Processar despesas parceladas
+    // 2. Processar despesas parceladas e financiamentos
     const installmentExpenses = allExpenses.filter(e => 
-      e.type === 'installment' && 
+      (e.type === 'installment' || e.type === 'financing') && 
       e.isRecurring === true
     );
 
@@ -250,7 +250,7 @@ export class SchedulerService {
       // Calcular qual parcela deve ser gerada
       const allInstallments = this.db.getExpenses().filter(e => 
         e.parentExpenseId === baseExpense.id && 
-        e.type === 'installment' &&
+        (e.type === 'installment' || e.type === 'financing') &&
         e.isGenerated === true
       );
 
@@ -285,7 +285,7 @@ export class SchedulerService {
         description: baseExpense.description,
         amount: Number(installmentAmount.toFixed(2)),
         category: baseExpense.category,
-        type: 'installment',
+        type: baseExpense.type, // Manter o tipo original (installment ou financing)
         dueDate: dueDate,
         dueDay: adjustedDueDay,
         status: 'PENDING',

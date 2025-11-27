@@ -17,8 +17,9 @@ export class ExpenseService {
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     
     // Determinar se é uma despesa recorrente/registrada
-    const isRecurring = data.isRecurring || data.type === 'fixed' || data.type === 'recurrent' || 
-                       (data.type === 'installment' && data.totalInstallments > 1);
+    const isRecurring = data.isRecurring || data.type === 'recurrent' || data.type === 'financing' || 
+                       (data.type === 'installment' && data.totalInstallments > 1) || 
+                       (data.type === 'financing' && data.totalInstallments > 1);
     
     // Calcular referenceMonth baseado na dueDate se não for fornecido
     let referenceMonth = data.referenceMonth;
@@ -77,8 +78,8 @@ export class ExpenseService {
         return null;
       }
 
-      // Para parceladas, verificar se deve gerar baseado na data de início
-      if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
+      // Para parceladas e financiamentos, verificar se deve gerar baseado na data de início
+      if ((baseExpense.type === 'installment' || baseExpense.type === 'financing') && baseExpense.totalInstallments) {
         const startDate = new Date(baseExpense.dueDate);
         const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
         
@@ -99,12 +100,12 @@ export class ExpenseService {
       
       const dueDate = new Date(year, month - 1, adjustedDueDay);
 
-      // Para parceladas, calcular número da parcela e valor
+      // Para parceladas e financiamentos, calcular número da parcela e valor
       let title = baseExpense.title;
       let amount = baseExpense.amount;
       let currentInstallment = undefined;
       
-      if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
+      if ((baseExpense.type === 'installment' || baseExpense.type === 'financing') && baseExpense.totalInstallments) {
         // Calcular o número da parcela baseado na diferença de meses entre início e mês atual
         const startDate = new Date(baseExpense.dueDate);
         const [targetYear, targetMonthNum] = targetMonth.split('-').map(Number);
@@ -353,12 +354,12 @@ export class ExpenseService {
         });
 
       case 'recurrent':
-        // Apenas despesas fixas e recorrentes
+        // Apenas despesas recorrentes
         return prisma.expense.findMany({
           where: {
             userId,
             isRecurring: true,
-            type: { in: ['fixed', 'recurrent'] }
+            type: 'recurrent'
           },
           orderBy: { dueDay: 'asc' }
         });
@@ -369,7 +370,7 @@ export class ExpenseService {
           where: {
             userId,
             isRecurring: true,
-            type: 'installment'
+            type: { in: ['installment', 'financing'] }
           },
           orderBy: { createdAt: 'desc' }
         });

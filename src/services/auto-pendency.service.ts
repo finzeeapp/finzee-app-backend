@@ -81,8 +81,8 @@ export class AutoPendencyService {
         return false;
       }
 
-      // Para parceladas, verificar se deve gerar baseado na data de início
-      if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
+      // Para parceladas e financiamentos, verificar se deve gerar baseado na data de início
+      if ((baseExpense.type === 'installment' || baseExpense.type === 'financing') && baseExpense.totalInstallments) {
         // Buscar quantas parcelas já foram geradas
         const generatedCount = await prisma.expense.count({
           where: {
@@ -125,12 +125,12 @@ export class AutoPendencyService {
       // Formatar data sem problema de timezone
       const dueDate = this.formatDateLocal(year, month, adjustedDueDay);
 
-      // Para parceladas, calcular número da parcela e valor
+      // Para parceladas e financiamentos, calcular número da parcela e valor
       let title = baseExpense.title;
       let amount = baseExpense.amount;
       let currentInstallment = undefined;
       
-      if (baseExpense.type === 'installment' && baseExpense.totalInstallments) {
+      if ((baseExpense.type === 'installment' || baseExpense.type === 'financing') && baseExpense.totalInstallments) {
         // Calcular o número da parcela baseado na diferença de meses
         const startDate = new Date(baseExpense.dueDate);
         const [targetYear, targetMonthNum] = currentMonth.split('-').map(Number);

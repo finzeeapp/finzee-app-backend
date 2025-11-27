@@ -92,9 +92,10 @@ export class ReportsService {
     );
 
     const typeNames: Record<string, string> = {
-      fixa: 'fixed',
-      variavel: 'variable',
-      parcelada: 'installment'
+      financing: 'financing',
+      recurrent: 'recurrent',
+      variable: 'variable',
+      installment: 'installment'
     };
 
     const typeData: Record<string, number> = {};
