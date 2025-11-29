@@ -1,30 +1,37 @@
-import { DatabaseService } from './database.service';
+import PrismaService from './prisma.service';
 
-export class ReportsService {
-  private db = DatabaseService.getInstance();
+
 
   async getMonthlyEvolution(userId: string, months: number = 6) {
-    const allExpenses = this.db.getExpenses();
-    const expenses = allExpenses.filter((e: any) => e.userId === userId);
-    const allUsers = this.db.getUsers();
-    const user = allUsers.find((u: any) => u.id === userId);
-
+    const prisma = PrismaService.getInstance();
     const monthlyData = [];
     const currentDate = new Date();
+
+    // Busca o usuário para pegar a renda mensal
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { monthlyIncome: true }
+    });
 
     for (let i = months - 1; i >= 0; i--) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const referenceMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const monthName = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
 
-      const monthExpenses = expenses.filter((e: any) => e.referenceMonth === referenceMonth);
-      const expenses_total = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
-      const paid = monthExpenses.filter((e: any) => e.isPaid).reduce((sum: number, e: any) => sum + e.amount, 0);
+      // Busca despesas do usuário para o mês
+      const monthExpenses = await prisma.expense.findMany({
+        where: {
+          userId: userId,
+          referenceMonth: referenceMonth
+        }
+      });
+      const expenses_total = monthExpenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+      const paid = monthExpenses.filter((e: any) => e.isPaid).reduce((sum: number, e: any) => sum + Number(e.amount), 0);
       const income = user?.monthlyIncome || 0;
 
       monthlyData.push({
         month: monthName,
-        income: parseFloat(income.toFixed(2)),
+        income: parseFloat(Number(income).toFixed(2)),
         expenses: parseFloat(expenses_total.toFixed(2)),
         paid: parseFloat(paid.toFixed(2))
       });
