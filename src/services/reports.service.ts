@@ -1,14 +1,17 @@
 import PrismaService from './prisma.service';
 
-
+export class ReportsService {
+  private prisma;
+  constructor() {
+    this.prisma = PrismaService.getInstance();
+  }
 
   async getMonthlyEvolution(userId: string, months: number = 6) {
-    const prisma = PrismaService.getInstance();
     const monthlyData = [];
     const currentDate = new Date();
 
     // Busca o usuário para pegar a renda mensal
-    const user = await prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { monthlyIncome: true }
     });
@@ -19,7 +22,7 @@ import PrismaService from './prisma.service';
       const monthName = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
 
       // Busca despesas do usuário para o mês
-      const monthExpenses = await prisma.expense.findMany({
+      const monthExpenses = await this.prisma.expense.findMany({
         where: {
           userId: userId,
           referenceMonth: referenceMonth
@@ -45,11 +48,13 @@ import PrismaService from './prisma.service';
     const currentMonth = month || String(now.getMonth() + 1);
     const currentYear = year || String(now.getFullYear());
     const referenceMonth = `${currentYear}-${currentMonth.padStart(2, '0')}`;
-    
-    const allExpenses = this.db.getExpenses();
-    const expenses = allExpenses.filter((e: any) => 
-      e.userId === userId && e.referenceMonth === referenceMonth
-    );
+
+    const expenses = await this.prisma.expense.findMany({
+      where: {
+        userId: userId,
+        referenceMonth: referenceMonth
+      }
+    });
 
     const categoryNames: Record<string, string> = {
       alimentacao: 'Alimentação',
@@ -64,14 +69,14 @@ import PrismaService from './prisma.service';
     };
 
     const categoryData: Record<string, { total: number, percentage: number }> = {};
-    const totalAmount = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+    const totalAmount = expenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
 
     expenses.forEach((expense: any) => {
       const category = categoryNames[expense.category] || expense.category;
       if (!categoryData[category]) {
         categoryData[category] = { total: 0, percentage: 0 };
       }
-      categoryData[category].total += expense.amount;
+      categoryData[category].total += Number(expense.amount);
     });
 
     // Calcular percentagens
@@ -92,11 +97,13 @@ import PrismaService from './prisma.service';
     const currentMonth = month || String(now.getMonth() + 1);
     const currentYear = year || String(now.getFullYear());
     const referenceMonth = `${currentYear}-${currentMonth.padStart(2, '0')}`;
-    
-    const allExpenses = this.db.getExpenses();
-    const expenses = allExpenses.filter((e: any) => 
-      e.userId === userId && e.referenceMonth === referenceMonth
-    );
+
+    const expenses = await this.prisma.expense.findMany({
+      where: {
+        userId: userId,
+        referenceMonth: referenceMonth
+      }
+    });
 
     const typeNames: Record<string, string> = {
       financing: 'financing',
@@ -109,7 +116,7 @@ import PrismaService from './prisma.service';
 
     expenses.forEach((expense: any) => {
       const type = typeNames[expense.type] || expense.type;
-      typeData[type] = (typeData[type] || 0) + expense.amount;
+      typeData[type] = (typeData[type] || 0) + Number(expense.amount);
     });
 
     return Object.entries(typeData).map(([type, total]) => ({
@@ -120,31 +127,36 @@ import PrismaService from './prisma.service';
 
   async getIncomeVsExpenses(userId: string, month?: string) {
     const currentMonth = month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    const allExpenses = this.db.getExpenses();
-    const expenses = allExpenses.filter((e: any) => 
-      e.userId === userId && e.referenceMonth === currentMonth
-    );
-    const allUsers = this.db.getUsers();
-    const user = allUsers.find((u: any) => u.id === userId);
+    const expenses = await this.prisma.expense.findMany({
+      where: {
+        userId: userId,
+        referenceMonth: currentMonth
+      }
+    });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { monthlyIncome: true }
+    });
 
-    const totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
-    const paidExpenses = expenses.filter((e: any) => e.isPaid).reduce((sum: number, e: any) => sum + e.amount, 0);
+    const totalExpenses = expenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+    const paidExpenses = expenses.filter((e: any) => e.isPaid).reduce((sum: number, e: any) => sum + Number(e.amount), 0);
     const income = user?.monthlyIncome || 0;
 
     return [
-      { name: 'Renda', value: parseFloat(income.toFixed(2)) },
+      { name: 'Renda', value: parseFloat(Number(income).toFixed(2)) },
       { name: 'Despesas', value: parseFloat(totalExpenses.toFixed(2)) },
       { name: 'Pagas', value: parseFloat(paidExpenses.toFixed(2)) },
-      { name: 'Disponível', value: parseFloat((income - totalExpenses).toFixed(2)) }
+      { name: 'Disponível', value: parseFloat((Number(income) - totalExpenses).toFixed(2)) }
     ];
   }
 
   async getInvestmentsSummary(userId: string) {
-    const allInvestments = this.db.getInvestments();
-    const investments = allInvestments.filter((i: any) => i.userId === userId);
+    const investments = await this.prisma.investment.findMany({
+      where: { userId: userId }
+    });
 
-    const totalInvested = investments.reduce((sum: number, i: any) => sum + (i.investedAmount || i.amount || 0), 0);
-    const currentValue = investments.reduce((sum: number, i: any) => sum + (i.currentAmount || i.currentValue || i.amount || 0), 0);
+    const totalInvested = investments.reduce((sum: number, i: any) => sum + (Number(i.investedAmount) || Number(i.amount) || 0), 0);
+    const currentValue = investments.reduce((sum: number, i: any) => sum + (Number(i.currentAmount) || Number(i.currentValue) || Number(i.amount) || 0), 0);
     const profitability = currentValue - totalInvested;
     const percentage = totalInvested > 0 ? (profitability / totalInvested) * 100 : 0;
 
