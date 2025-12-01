@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { Expense } from '@prisma/client';
+import { prisma } from './prisma.service';
 
 export interface ExpenseNotificationData {
   overdue: Expense[];
@@ -55,6 +56,9 @@ export class EmailService {
       const html = this.buildEmailTemplate(userName, data);
 
       console.log(`📧 Enviando via Resend API...`);
+      console.log(`   From: ${this.fromEmail}`);
+      console.log(`   To: ${userEmail}`);
+      console.log(`   Subject: ${subject}`);
       
       const response = await this.resend.emails.send({
         from: this.fromEmail,
@@ -65,8 +69,35 @@ export class EmailService {
 
       const duration = Date.now() - startTime;
       
+      console.log(`📋 Resend Response:`, JSON.stringify(response, null, 2));
+      
       if (response.error) {
-        console.error(`❌ Erro Resend para ${userEmail}:`, response.error);
+        console.error(`❌ Erro Resend para ${userEmail}:`);
+        console.error(`   - Mensagem: ${response.error.message}`);
+        console.error(`   - Nome: ${response.error.name}`);
+        console.error(`   - Objeto completo:`, JSON.stringify(response.error, null, 2));
+        
+        // Detectar email bounced (erro 550 ou "does not exist")
+        const errorMessage = response.error.message?.toLowerCase() || '';
+        const isBounced = 
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('bounce') ||
+          errorMessage.includes('invalid') ||
+          errorMessage.includes('550');
+        
+        if (isBounced) {
+          console.warn(`🚫 Email bounced detectado para ${userEmail}, marcando no banco...`);
+          try {
+            await prisma.user.update({
+              where: { email: userEmail },
+              data: { emailBounced: true }
+            });
+            console.log(`✓ Usuário ${userEmail} marcado como emailBounced=true`);
+          } catch (dbError: any) {
+            console.error(`❌ Erro ao marcar emailBounced:`, dbError.message);
+          }
+        }
+        
         return false;
       }
 
@@ -82,6 +113,28 @@ export class EmailService {
       
       if (error.statusCode) {
         console.error(`   - Status Code: ${error.statusCode}`);
+      }
+      
+      // Detectar bounces em exceptions também
+      const errorMessage = error.message?.toLowerCase() || '';
+      const isBounced = 
+        errorMessage.includes('does not exist') ||
+        errorMessage.includes('bounce') ||
+        errorMessage.includes('invalid') ||
+        errorMessage.includes('550') ||
+        error.statusCode === 550;
+      
+      if (isBounced) {
+        console.warn(`🚫 Email bounced detectado (exception) para ${userEmail}, marcando no banco...`);
+        try {
+          await prisma.user.update({
+            where: { email: userEmail },
+            data: { emailBounced: true }
+          });
+          console.log(`✓ Usuário ${userEmail} marcado como emailBounced=true`);
+        } catch (dbError: any) {
+          console.error(`❌ Erro ao marcar emailBounced:`, dbError.message);
+        }
       }
       
       return false;
