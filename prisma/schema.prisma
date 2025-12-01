@@ -22,8 +22,8 @@ model User {
   notificationDaysBefore    Int?      @default(3)
   emailNotificationsEnabled Boolean?  @default(true)
   lastNotificationSent      DateTime?
-  emailBounced              Boolean?  @default(false)
-  emailVerified             Boolean?  @default(false)
+  emailBounced              Boolean?  @default(false) @map("email_bounced")
+  emailVerified             Boolean?  @default(false) @map("email_verified")
   savingsGoal               Float?
   savingsGoalDeadline       DateTime?
   currency                  String?   @default("BRL") @db.VarChar(3)

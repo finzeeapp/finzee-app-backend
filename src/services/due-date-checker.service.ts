@@ -19,9 +19,22 @@ export class DueDateCheckerService {
     const startTime = Date.now();
     console.log('🔍 Iniciando verificação de vencimentos...');
     
+    // Verificar quantos usuários estão com email bounced
+    const bouncedCount = await prisma.user.count({
+      where: {
+        emailNotificationsEnabled: true,
+        emailBounced: true
+      }
+    });
+    
+    if (bouncedCount > 0) {
+      console.log(`🚫 ${bouncedCount} usuário(s) com email bounced (serão ignorados)`);
+    }
+    
     const users = await prisma.user.findMany({
       where: {
-        emailNotificationsEnabled: true
+        emailNotificationsEnabled: true,
+        emailBounced: false
       },
       include: {
         expenses: {
@@ -35,7 +48,7 @@ export class DueDateCheckerService {
       }
     });
 
-    console.log(`👥 ${users.length} usuário(s) com notificações ativadas`);
+    console.log(`👥 ${users.length} usuário(s) com notificações ativadas (emails válidos)`);
 
     // Processar usuários em PARALELO (máximo 3 por vez)
     const batchSize = 3;

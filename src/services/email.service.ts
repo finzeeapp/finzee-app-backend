@@ -77,17 +77,26 @@ export class EmailService {
         console.error(`   - Nome: ${response.error.name}`);
         console.error(`   - Objeto completo:`, JSON.stringify(response.error, null, 2));
         
-        // TODO: Implementar detecção de bounce quando Prisma Client for atualizado
-        // const errorMessage = response.error.message?.toLowerCase() || '';
-        // const isBounced = 
-        //   errorMessage.includes('does not exist') ||
-        //   errorMessage.includes('bounce') ||
-        //   errorMessage.includes('invalid') ||
-        //   errorMessage.includes('550');
+        // Detectar email bounced (erro 550 ou "does not exist")
+        const errorMessage = response.error.message?.toLowerCase() || '';
+        const isBounced = 
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('bounce') ||
+          errorMessage.includes('invalid') ||
+          errorMessage.includes('550');
         
-        // if (isBounced) {
-        //   console.warn(`🚫 Email bounced detectado para ${userEmail}`);
-        // }
+        if (isBounced) {
+          console.warn(`🚫 Email bounced detectado para ${userEmail}, marcando no banco...`);
+          try {
+            await prisma.user.update({
+              where: { email: userEmail },
+              data: { emailBounced: true }
+            });
+            console.log(`✓ Usuário ${userEmail} marcado como emailBounced=true`);
+          } catch (dbError: any) {
+            console.error(`❌ Erro ao marcar emailBounced:`, dbError.message);
+          }
+        }
         
         return false;
       }
@@ -106,18 +115,27 @@ export class EmailService {
         console.error(`   - Status Code: ${error.statusCode}`);
       }
       
-      // TODO: Implementar detecção de bounce quando Prisma Client for atualizado
-      // const errorMessage = error.message?.toLowerCase() || '';
-      // const isBounced = 
-      //   errorMessage.includes('does not exist') ||
-      //   errorMessage.includes('bounce') ||
-      //   errorMessage.includes('invalid') ||
-      //   errorMessage.includes('550') ||
-      //   error.statusCode === 550;
+      // Detectar bounces em exceptions também
+      const errorMessage = error.message?.toLowerCase() || '';
+      const isBounced = 
+        errorMessage.includes('does not exist') ||
+        errorMessage.includes('bounce') ||
+        errorMessage.includes('invalid') ||
+        errorMessage.includes('550') ||
+        error.statusCode === 550;
       
-      // if (isBounced) {
-      //   console.warn(`🚫 Email bounced detectado (exception) para ${userEmail}`);
-      // }
+      if (isBounced) {
+        console.warn(`🚫 Email bounced detectado (exception) para ${userEmail}, marcando no banco...`);
+        try {
+          await prisma.user.update({
+            where: { email: userEmail },
+            data: { emailBounced: true }
+          });
+          console.log(`✓ Usuário ${userEmail} marcado como emailBounced=true`);
+        } catch (dbError: any) {
+          console.error(`❌ Erro ao marcar emailBounced:`, dbError.message);
+        }
+      }
       
       return false;
     }
