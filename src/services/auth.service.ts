@@ -224,21 +224,23 @@ export class AuthService {
     // Mapear campos permitidos
     if (updateData.name) dataToUpdate.name = updateData.name;
     
-    // Se o email for atualizado, resetar flags de validação
+    // TODO: Implementar reset de flags quando Prisma Client for atualizado
+    // if (updateData.email) {
+    //   const currentUser = await prisma.user.findUnique({
+    //     where: { id: userId },
+    //     select: { email: true }
+    //   });
+    //   
+    //   if (currentUser && currentUser.email !== updateData.email) {
+    //     console.log(`🔄 Email alterado para ${userId}`);
+    //     dataToUpdate.email = updateData.email;
+    //     dataToUpdate.emailBounced = false;
+    //     dataToUpdate.emailVerified = false;
+    //   }
+    // }
+    
     if (updateData.email) {
-      const currentUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true }
-      });
-      
-      // Só resetar se o email realmente mudou
-      if (currentUser && currentUser.email !== updateData.email) {
-        console.log(`🔄 Email alterado para ${userId}: ${currentUser.email} → ${updateData.email}`);
-        dataToUpdate.email = updateData.email;
-        dataToUpdate.emailBounced = false;
-        dataToUpdate.emailVerified = false;
-        console.log(`   ✓ Flags resetadas: emailBounced=false, emailVerified=false`);
-      }
+      dataToUpdate.email = updateData.email;
     }
     
     if (updateData.monthlyIncome !== undefined) dataToUpdate.monthlyIncome = Number(updateData.monthlyIncome);
