@@ -96,12 +96,14 @@ export class DailyNotificationScheduler {
    * Obtém o horário da próxima execução
    */
   private getNextExecutionTime(): string {
-    const now = new Date();
-    const next = new Date(now);
+    // Obter horário atual em São Paulo
+    const nowSP = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
+    const now = new Date(nowSP);
+    const next = new Date(nowSP);
     
     next.setHours(8, 0, 0, 0);
     
-    // Se já passou das 8h hoje, agenda para amanhã
+    // Se já passou das 8h hoje em São Paulo, agenda para amanhã
     if (now.getHours() >= 8) {
       next.setDate(next.getDate() + 1);
     }
