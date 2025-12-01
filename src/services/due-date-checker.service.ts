@@ -16,6 +16,7 @@ export class DueDateCheckerService {
    * Verifica e envia notificações para todos os usuários
    */
   async checkAndNotifyAll(): Promise<NotificationResult[]> {
+    const startTime = Date.now();
     console.log('🔍 Iniciando verificação de vencimentos...');
     
     const users = await prisma.user.findMany({
@@ -36,15 +37,24 @@ export class DueDateCheckerService {
 
     console.log(`👥 ${users.length} usuário(s) com notificações ativadas`);
 
+    // Processar usuários em PARALELO (máximo 3 por vez)
+    const batchSize = 3;
     const results: NotificationResult[] = [];
 
-    for (const user of users) {
-      const result = await this.checkAndNotifyUser(user);
-      results.push(result);
+    for (let i = 0; i < users.length; i += batchSize) {
+      const batch = users.slice(i, i + batchSize);
+      console.log(`📦 Processando batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(users.length / batchSize)}...`);
+      
+      const batchResults = await Promise.all(
+        batch.map(user => this.checkAndNotifyUser(user))
+      );
+      
+      results.push(...batchResults);
     }
 
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     const sentCount = results.filter(r => r.sent).length;
-    console.log(`✅ ${sentCount}/${users.length} notificações enviadas`);
+    console.log(`✅ ${sentCount}/${users.length} notificações enviadas em ${duration}s`);
 
     return results;
   }
@@ -53,11 +63,13 @@ export class DueDateCheckerService {
    * Verifica e notifica um usuário específico
    */
   async checkAndNotifyUser(user: User & { expenses: Expense[] }): Promise<NotificationResult> {
+    const startTime = Date.now();
+    
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Verifica se já foi notificado hoje
+      // Verifica se já foi notificado hoje (SKIP para teste)
       const lastNotificationDate = user.lastNotificationSent 
         ? new Date(user.lastNotificationSent)
         : null;
@@ -65,6 +77,7 @@ export class DueDateCheckerService {
       if (lastNotificationDate) {
         lastNotificationDate.setHours(0, 0, 0, 0);
         if (lastNotificationDate.getTime() === today.getTime()) {
+          console.log(`⏭️ ${user.email}: Já notificado hoje`);
           return {
             userId: user.id,
             userEmail: user.email,

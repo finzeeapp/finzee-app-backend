@@ -14,4 +14,7 @@ router.patch('/:id/read', (req, res) => notificationController.markAsRead(req, r
 // Endpoint de teste para notificações por e-mail
 router.post('/test-email', (req, res) => notificationController.testEmailNotification(req, res));
 
+// Endpoint de teste direto (força envio mesmo sem despesas)
+router.post('/test-direct', (req, res) => notificationController.testDirectEmail(req, res));
+
 export { router as notificationRoutes };

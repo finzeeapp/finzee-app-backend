@@ -11,13 +11,21 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
-    // Configuração do Gmail SMTP
+    // Configuração do Gmail SMTP com pool de conexões e timeout
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.GMAIL_USER, // seu-email@gmail.com
-        pass: process.env.GMAIL_APP_PASSWORD // senha de app do Gmail
-      }
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD
+      },
+      pool: true, // Usa pool de conexões (mais rápido)
+      maxConnections: 5, // Máximo de conexões simultâneas
+      maxMessages: 100, // Mensagens por conexão
+      rateDelta: 1000, // Tempo entre mensagens (1 segundo)
+      rateLimit: 5, // Máximo de 5 mensagens por segundo
+      connectionTimeout: 10000, // Timeout de 10 segundos
+      greetingTimeout: 5000,
+      socketTimeout: 15000
     });
   }
 
@@ -29,6 +37,8 @@ export class EmailService {
     userName: string,
     data: ExpenseNotificationData
   ): Promise<boolean> {
+    const startTime = Date.now();
+    
     try {
       const { overdue, dueSoon, urgencyLevel } = data;
       
@@ -41,17 +51,34 @@ export class EmailService {
       const subject = this.getEmailSubject(urgencyLevel, overdue.length, dueSoon.length);
       const html = this.buildEmailTemplate(userName, data);
 
-      await this.transporter.sendMail({
+      // Timeout de 10 segundos por e-mail
+      const sendPromise = this.transporter.sendMail({
         from: `"Finzee - Controle Financeiro" <${process.env.GMAIL_USER}>`,
         to: userEmail,
         subject,
         html
       });
 
-      console.log(`✅ E-mail enviado para ${userEmail} (${urgencyLevel})`);
+      await Promise.race([
+        sendPromise,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout ao enviar e-mail')), 10000)
+        )
+      ]);
+
+      const duration = Date.now() - startTime;
+      console.log(`✅ E-mail enviado para ${userEmail} em ${duration}ms`);
       return true;
+      
     } catch (error: any) {
-      console.error(`❌ Erro ao enviar e-mail para ${userEmail}:`, error.message);
+      const duration = Date.now() - startTime;
+      console.error(`❌ Erro ao enviar e-mail para ${userEmail} após ${duration}ms:`, error.message);
+      
+      // Se for timeout ou erro de conexão, não trava o processo
+      if (error.message.includes('Timeout') || error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET') {
+        console.log(`⏭️ Pulando ${userEmail} devido a timeout`);
+      }
+      
       return false;
     }
   }
