@@ -7,6 +7,7 @@ export interface ExpenseNotificationData {
   urgencyLevel: 'normal' | 'alert' | 'urgent';
 }
 
+
 export class EmailService {
   private transporter: nodemailer.Transporter;
 
