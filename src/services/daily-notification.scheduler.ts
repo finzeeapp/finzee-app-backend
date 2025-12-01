@@ -21,7 +21,7 @@ export class DailyNotificationScheduler {
       timezone: 'America/Sao_Paulo'
     });
     
-    console.log('✅ Scheduler de notificações iniciado! Executará às 8h diariamente.');
+    console.log('✅ Scheduler de notificações iniciado! Executará às 8h diariamente (horário de Brasília).');
     console.log('⏰ Próxima execução:', this.getNextExecutionTime());
   }
 
