@@ -78,7 +78,8 @@ export class EmailService {
       return true;
       
     } catch (error: any) {
-      console.error(`❌ Erro ao enviar email para ${userEmail}: ${error.message}`);\n      
+      console.error(`❌ Erro ao enviar email para ${userEmail}: ${error.message}`);
+      
       // Detectar bounces em exceptions também
       const errorMessage = error.message?.toLowerCase() || '';
       const isBounced = 

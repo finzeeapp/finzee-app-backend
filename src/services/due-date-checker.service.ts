@@ -55,45 +55,6 @@ export class DueDateCheckerService {
 
     return results;
   }
-    }
-    
-    const users = await prisma.user.findMany({
-      where: {
-        emailNotificationsEnabled: true,
-        emailBounced: false
-      },
-      include: {
-        expenses: {
-          where: {
-            isPaid: false,
-            status: {
-              in: ['PENDING', 'OVERDUE']
-            }
-          }
-        }
-      }
-    });
-
-    // Processar usuários em PARALELO (máximo 3 por vez)
-    const batchSize = 3;
-    const results: NotificationResult[] = [];
-
-    for (let i = 0; i < users.length; i += batchSize) {
-      const batch = users.slice(i, i + batchSize);
-      
-      const batchResults = await Promise.all(
-        batch.map(user => this.checkAndNotifyUser(user))
-      );
-      
-      results.push(...batchResults);
-    }
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    const sentCount = results.filter(r => r.sent).length;
-    console.log(`✅ ${sentCount}/${users.length} notificações enviadas em ${duration}s`);
-
-    return results;
-  }
 
   /**
    * Verifica e notifica um usuário específico
