@@ -416,7 +416,7 @@ export class EmailService {
       </div>
 
       <!-- Call to Action -->
-      <a href="${process.env.FRONTEND_URL || 'https://finzee-app-frontend.vercel.app'}" class="cta-button">
+      <a href="https://finzee.com.br" class="cta-button">
         💼 Acessar Minhas Contas
       </a>
 
@@ -432,7 +432,7 @@ export class EmailService {
         Você está recebendo este e-mail porque ativou notificações de vencimento.
       </p>
       <p class="footer-text">
-        <a href="${process.env.FRONTEND_URL || 'https://finzee-app-frontend.vercel.app'}" class="footer-link">Configurações</a>
+        <a href="https://finzee.com.br" class="footer-link">Configurações</a>
       </p>
       <p class="footer-text" style="margin-top: 12px; font-size: 11px; color: #9CA3AF;">
         Este é um e-mail automático. Por favor, não responda.
