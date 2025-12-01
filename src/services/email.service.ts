@@ -13,19 +13,12 @@ export class EmailService {
   private fromEmail: string;
 
   constructor() {
-    console.log('🔧 Inicializando EmailService com Resend...');
-    console.log('🔑 RESEND_API_KEY:', process.env.RESEND_API_KEY ? '✓ Configurado' : '✗ NÃO CONFIGURADO');
-    
     if (!process.env.RESEND_API_KEY) {
-      console.error('❌ RESEND_API_KEY não configurado!');
       throw new Error('RESEND_API_KEY é obrigatório');
     }
     
     this.resend = new Resend(process.env.RESEND_API_KEY);
     this.fromEmail = process.env.RESEND_FROM_EMAIL || 'Finzee <onboarding@resend.dev>';
-    
-    console.log('✅ Resend Email Service inicializado');
-    console.log('📧 From email:', this.fromEmail);
   }
 
   /**
@@ -43,22 +36,11 @@ export class EmailService {
       
       // Não enviar se não houver despesas
       if (overdue.length === 0 && dueSoon.length === 0) {
-        console.log(`📭 Sem despesas para notificar: ${userEmail}`);
         return false;
       }
 
-      console.log(`📤 Preparando envio para ${userEmail}...`);
-      console.log(`   - Despesas atrasadas: ${overdue.length}`);
-      console.log(`   - Despesas vencendo: ${dueSoon.length}`);
-      console.log(`   - Nível de urgência: ${urgencyLevel}`);
-
       const subject = this.getEmailSubject(urgencyLevel, overdue.length, dueSoon.length);
       const html = this.buildEmailTemplate(userName, data);
-
-      console.log(`📧 Enviando via Resend API...`);
-      console.log(`   From: ${this.fromEmail}`);
-      console.log(`   To: ${userEmail}`);
-      console.log(`   Subject: ${subject}`);
       
       const response = await this.resend.emails.send({
         from: this.fromEmail,
@@ -66,16 +48,9 @@ export class EmailService {
         subject: subject,
         html: html
       });
-
-      const duration = Date.now() - startTime;
-      
-      console.log(`📋 Resend Response:`, JSON.stringify(response, null, 2));
       
       if (response.error) {
-        console.error(`❌ Erro Resend para ${userEmail}:`);
-        console.error(`   - Mensagem: ${response.error.message}`);
-        console.error(`   - Nome: ${response.error.name}`);
-        console.error(`   - Objeto completo:`, JSON.stringify(response.error, null, 2));
+        console.error(`❌ Erro ao enviar email para ${userEmail}: ${response.error.message}`);
         
         // Detectar email bounced (erro 550 ou "does not exist")
         const errorMessage = response.error.message?.toLowerCase() || '';
@@ -86,35 +61,24 @@ export class EmailService {
           errorMessage.includes('550');
         
         if (isBounced) {
-          console.warn(`🚫 Email bounced detectado para ${userEmail}, marcando no banco...`);
           try {
             await prisma.user.update({
               where: { email: userEmail },
               data: { emailBounced: true }
             });
-            console.log(`✓ Usuário ${userEmail} marcado como emailBounced=true`);
+            console.log(`🚫 Email bounced: ${userEmail}`);
           } catch (dbError: any) {
-            console.error(`❌ Erro ao marcar emailBounced:`, dbError.message);
+            console.error(`Erro ao marcar emailBounced: ${dbError.message}`);
           }
         }
         
         return false;
       }
 
-      console.log(`✅ E-mail enviado para ${userEmail} em ${duration}ms`);
-      console.log(`   Email ID: ${response.data?.id}`);
       return true;
       
     } catch (error: any) {
-      const duration = Date.now() - startTime;
-      console.error(`❌ ERRO ao enviar e-mail para ${userEmail} após ${duration}ms:`);
-      console.error(`   - Mensagem: ${error.message}`);
-      console.error(`   - Nome: ${error.name}`);
-      
-      if (error.statusCode) {
-        console.error(`   - Status Code: ${error.statusCode}`);
-      }
-      
+      console.error(`❌ Erro ao enviar email para ${userEmail}: ${error.message}`);\n      
       // Detectar bounces em exceptions também
       const errorMessage = error.message?.toLowerCase() || '';
       const isBounced = 
@@ -125,15 +89,14 @@ export class EmailService {
         error.statusCode === 550;
       
       if (isBounced) {
-        console.warn(`🚫 Email bounced detectado (exception) para ${userEmail}, marcando no banco...`);
         try {
           await prisma.user.update({
             where: { email: userEmail },
             data: { emailBounced: true }
           });
-          console.log(`✓ Usuário ${userEmail} marcado como emailBounced=true`);
+          console.log(`🚫 Email bounced: ${userEmail}`);
         } catch (dbError: any) {
-          console.error(`❌ Erro ao marcar emailBounced:`, dbError.message);
+          console.error(`Erro ao marcar emailBounced: ${dbError.message}`);
         }
       }
       

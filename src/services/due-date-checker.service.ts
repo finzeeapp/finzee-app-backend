@@ -17,18 +17,44 @@ export class DueDateCheckerService {
    */
   async checkAndNotifyAll(): Promise<NotificationResult[]> {
     const startTime = Date.now();
-    console.log('🔍 Iniciando verificação de vencimentos...');
     
-    // Verificar quantos usuários estão com email bounced
-    const bouncedCount = await prisma.user.count({
+    const users = await prisma.user.findMany({
       where: {
         emailNotificationsEnabled: true,
-        emailBounced: true
+        emailBounced: false
+      },
+      include: {
+        expenses: {
+          where: {
+            isPaid: false,
+            status: {
+              in: ['PENDING', 'OVERDUE']
+            }
+          }
+        }
       }
     });
-    
-    if (bouncedCount > 0) {
-      console.log(`🚫 ${bouncedCount} usuário(s) com email bounced (serão ignorados)`);
+
+    // Processar usuários em PARALELO (máximo 3 por vez)
+    const batchSize = 3;
+    const results: NotificationResult[] = [];
+
+    for (let i = 0; i < users.length; i += batchSize) {
+      const batch = users.slice(i, i + batchSize);
+      
+      const batchResults = await Promise.all(
+        batch.map(user => this.checkAndNotifyUser(user))
+      );
+      
+      results.push(...batchResults);
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    const sentCount = results.filter(r => r.sent).length;
+    console.log(`✅ ${sentCount}/${users.length} notificações enviadas em ${duration}s`);
+
+    return results;
+  }
     }
     
     const users = await prisma.user.findMany({
@@ -48,15 +74,12 @@ export class DueDateCheckerService {
       }
     });
 
-    console.log(`👥 ${users.length} usuário(s) com notificações ativadas (emails válidos)`);
-
     // Processar usuários em PARALELO (máximo 3 por vez)
     const batchSize = 3;
     const results: NotificationResult[] = [];
 
     for (let i = 0; i < users.length; i += batchSize) {
       const batch = users.slice(i, i + batchSize);
-      console.log(`📦 Processando batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(users.length / batchSize)}...`);
       
       const batchResults = await Promise.all(
         batch.map(user => this.checkAndNotifyUser(user))
@@ -90,7 +113,6 @@ export class DueDateCheckerService {
       if (lastNotificationDate) {
         lastNotificationDate.setHours(0, 0, 0, 0);
         if (lastNotificationDate.getTime() === today.getTime()) {
-          console.log(`⏭️ ${user.email}: Já notificado hoje`);
           return {
             userId: user.id,
             userEmail: user.email,

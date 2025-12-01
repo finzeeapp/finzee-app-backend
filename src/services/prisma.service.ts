@@ -9,10 +9,8 @@ class PrismaService {
   static getInstance(): PrismaClient {
     if (!PrismaService.instance) {
       PrismaService.instance = new PrismaClient({
-        log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+        log: ['error'],
       });
-
-      console.log('🔌 Prisma Client conectado ao banco de dados');
     }
 
     return PrismaService.instance;
