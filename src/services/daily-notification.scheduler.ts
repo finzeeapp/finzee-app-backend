@@ -96,23 +96,33 @@ export class DailyNotificationScheduler {
    * Obtém o horário da próxima execução
    */
   private getNextExecutionTime(): string {
-    // Obter horário atual em São Paulo
-    const nowSP = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
-    const now = new Date(nowSP);
+    // Criar data em UTC e converter para São Paulo (UTC-3)
+    const now = new Date();
+    
+    // Converter para horário de São Paulo (UTC-3)
+    const offsetSP = -3 * 60; // -3 horas em minutos
+    const offsetLocal = now.getTimezoneOffset(); // offset local em minutos
+    const diffMinutes = offsetLocal - offsetSP;
+    
+    const nowSP = new Date(now.getTime() + diffMinutes * 60000);
     const next = new Date(nowSP);
     
     next.setHours(8, 0, 0, 0);
     
     // Se já passou das 8h hoje em São Paulo, agenda para amanhã
-    if (now.getHours() >= 8) {
+    if (nowSP.getHours() >= 8) {
       next.setDate(next.getDate() + 1);
     }
     
-    return next.toLocaleString('pt-BR', { 
-      timeZone: 'America/Sao_Paulo',
-      dateStyle: 'full',
-      timeStyle: 'short'
-    });
+    // Formatar manualmente para garantir horário correto
+    const dias = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+    const diaSemana = dias[next.getDay()];
+    const dia = next.getDate();
+    const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    const mes = meses[next.getMonth()];
+    const ano = next.getFullYear();
+    
+    return `${diaSemana}, ${dia} de ${mes} de ${ano} às 08:00`;
   }
 
   /**
