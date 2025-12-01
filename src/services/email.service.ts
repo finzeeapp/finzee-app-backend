@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { Expense } from '@prisma/client';
 
 export interface ExpenseNotificationData {
@@ -7,35 +7,24 @@ export interface ExpenseNotificationData {
   urgencyLevel: 'normal' | 'alert' | 'urgent';
 }
 
-
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private resend: Resend;
+  private fromEmail: string;
 
   constructor() {
-    console.log('🔧 Inicializando EmailService...');
-    console.log('📧 GMAIL_USER:', process.env.GMAIL_USER ? '✓ Configurado' : '✗ NÃO CONFIGURADO');
-    console.log('🔑 GMAIL_APP_PASSWORD:', process.env.GMAIL_APP_PASSWORD ? '✓ Configurado' : '✗ NÃO CONFIGURADO');
+    console.log('🔧 Inicializando EmailService com Resend...');
+    console.log('🔑 RESEND_API_KEY:', process.env.RESEND_API_KEY ? '✓ Configurado' : '✗ NÃO CONFIGURADO');
     
-    // Configuração do Gmail SMTP com pool de conexões e timeout
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
-      },
-      pool: true, // Usa pool de conexões (mais rápido)
-      maxConnections: 5, // Máximo de conexões simultâneas
-      maxMessages: 100, // Mensagens por conexão
-      rateDelta: 1000, // Tempo entre mensagens (1 segundo)
-      rateLimit: 5, // Máximo de 5 mensagens por segundo
-      connectionTimeout: 10000, // Timeout de 10 segundos
-      greetingTimeout: 5000,
-      socketTimeout: 15000,
-      logger: true, // Ativa logs do nodemailer
-      debug: true // Ativa modo debug
-    });
+    if (!process.env.RESEND_API_KEY) {
+      console.error('❌ RESEND_API_KEY não configurado!');
+      throw new Error('RESEND_API_KEY é obrigatório');
+    }
     
-    console.log('✅ Transporter SMTP criado');
+    this.resend = new Resend(process.env.RESEND_API_KEY);
+    this.fromEmail = process.env.RESEND_FROM_EMAIL || 'Finzee <onboarding@resend.dev>';
+    
+    console.log('✅ Resend Email Service inicializado');
+    console.log('📧 From email:', this.fromEmail);
   }
 
   /**
@@ -65,43 +54,34 @@ export class EmailService {
       const subject = this.getEmailSubject(urgencyLevel, overdue.length, dueSoon.length);
       const html = this.buildEmailTemplate(userName, data);
 
-      console.log(`🔌 Tentando conectar ao SMTP do Gmail...`);
+      console.log(`📧 Enviando via Resend API...`);
       
-      // Timeout de 10 segundos por e-mail
-      const sendPromise = this.transporter.sendMail({
-        from: `"Finzee - Controle Financeiro" <${process.env.GMAIL_USER}>`,
+      const response = await this.resend.emails.send({
+        from: this.fromEmail,
         to: userEmail,
-        subject,
-        html
+        subject: subject,
+        html: html
       });
 
-      const result = await Promise.race([
-        sendPromise,
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout ao enviar e-mail')), 10000)
-        )
-      ]);
-
       const duration = Date.now() - startTime;
+      
+      if (response.error) {
+        console.error(`❌ Erro Resend para ${userEmail}:`, response.error);
+        return false;
+      }
+
       console.log(`✅ E-mail enviado para ${userEmail} em ${duration}ms`);
-      console.log(`   Response:`, result);
+      console.log(`   Email ID: ${response.data?.id}`);
       return true;
       
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      console.error(`❌ ERRO DETALHADO ao enviar e-mail para ${userEmail} após ${duration}ms:`);
+      console.error(`❌ ERRO ao enviar e-mail para ${userEmail} após ${duration}ms:`);
       console.error(`   - Mensagem: ${error.message}`);
-      console.error(`   - Código: ${error.code || 'N/A'}`);
-      console.error(`   - Stack: ${error.stack || 'N/A'}`);
-      console.error(`   - Response: ${error.response || 'N/A'}`);
-      console.error(`   - ResponseCode: ${error.responseCode || 'N/A'}`);
-      console.error(`   - Command: ${error.command || 'N/A'}`);
+      console.error(`   - Nome: ${error.name}`);
       
-      // Se for timeout ou erro de conexão, não trava o processo
-      if (error.message.includes('Timeout') || error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET') {
-        console.log(`⏭️ Pulando ${userEmail} devido a timeout/conexão`);
-      } else if (error.responseCode) {
-        console.log(`⚠️ Erro SMTP ${error.responseCode}: ${error.response}`);
+      if (error.statusCode) {
+        console.error(`   - Status Code: ${error.statusCode}`);
       }
       
       return false;
@@ -335,15 +315,30 @@ export class EmailService {
   }
 
   /**
-   * Testa conexão SMTP
+   * Testa conexão com Resend API
    */
   async testConnection(): Promise<boolean> {
     try {
-      await this.transporter.verify();
-      console.log('✅ Conexão SMTP verificada com sucesso');
+      console.log('🔍 Testando API Key do Resend...');
+      
+      // Tenta enviar um email de teste para validar a API key
+      // Resend não tem método verify() como Nodemailer, então testamos enviando
+      const response = await this.resend.emails.send({
+        from: this.fromEmail,
+        to: 'test@resend.dev', // Email de teste do Resend
+        subject: 'Test Connection',
+        html: '<p>Connection test</p>'
+      });
+      
+      if (response.error) {
+        console.error('❌ Erro ao testar Resend:', response.error);
+        return false;
+      }
+      
+      console.log('✅ Resend API Key válida');
       return true;
     } catch (error: any) {
-      console.error('❌ Erro na conexão SMTP:', error.message);
+      console.error('❌ Erro na conexão Resend:', error.message);
       return false;
     }
   }
