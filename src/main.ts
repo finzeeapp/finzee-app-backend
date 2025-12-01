@@ -10,6 +10,7 @@ import reportsRoutes from './routes/reports.routes';
 import schedulerRoutes from './routes/scheduler.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { SchedulerService } from './services/scheduler-simple.service';
+import { DailyNotificationScheduler } from './services/daily-notification.scheduler';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -66,6 +67,10 @@ app.use(errorHandler);
 const schedulerService = new SchedulerService();
 console.log('📅 Scheduler de pendências mensais inicializado');
 
+// Inicializar o scheduler de notificações diárias
+const notificationScheduler = new DailyNotificationScheduler();
+notificationScheduler.start();
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log('📊 API Endpoints disponíveis:');
@@ -73,6 +78,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('   - GET  /api/scheduler/status - Status do scheduler');
   console.log('   - POST /api/scheduler/generate-current-user - Gerar para usuário atual');
   console.log('   - DELETE /api/scheduler/clear/:month - Limpar pendências de um mês');
+  console.log('   - POST /api/notifications/test-email - Testar envio de notificação');
 });
 
 export default app;

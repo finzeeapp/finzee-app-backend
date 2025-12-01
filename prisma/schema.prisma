@@ -19,6 +19,8 @@ model User {
   monthlyInvestmentCapacity Float?
   investorProfile           String?   @db.VarChar(20)
   notificationDaysBefore    Int?      @default(3)
+  emailNotificationsEnabled Boolean?  @default(true)
+  lastNotificationSent      DateTime?
   savingsGoal               Float?
   savingsGoalDeadline       DateTime?
   currency                  String?   @default("BRL") @db.VarChar(3)
@@ -28,9 +30,10 @@ model User {
   updatedAt                 DateTime  @updatedAt
 
   // Relations
-  expenses      Expense[]
-  investments   Investment[]
-  notifications Notification[]
+  expenses         Expense[]
+  investments      Investment[]
+  notifications    Notification[]
+  notificationLogs NotificationLog[]
 
   @@map("users")
 }
@@ -109,4 +112,21 @@ model Notification {
   @@index([userId])
   @@index([read])
   @@map("notifications")
+}
+
+model NotificationLog {
+  id            String   @id @default(uuid())
+  userId        String
+  type          String   // EMAIL, WEB_PUSH, SMS
+  overdueCount  Int
+  dueSoonCount  Int
+  urgencyLevel  String   // normal, alert, urgent
+  sentAt        DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sentAt])
+  @@map("notification_logs")
 }

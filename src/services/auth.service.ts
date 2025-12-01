@@ -194,6 +194,7 @@ export class AuthService {
         monthlyInvestmentCapacity: true,
         investorProfile: true,
         notificationDaysBefore: true,
+        emailNotificationsEnabled: true,
         savingsGoal: true,
         savingsGoalDeadline: true,
         createdAt: true,
@@ -212,6 +213,7 @@ export class AuthService {
       investmentProfile: user.investorProfile,
       investmentCapacity: user.monthlyInvestmentCapacity,
       notificationDays: user.notificationDaysBefore,
+      emailNotifications: user.emailNotificationsEnabled,
       savingsDeadline: user.savingsGoalDeadline
     };
   }
@@ -229,7 +231,12 @@ export class AuthService {
       dataToUpdate.monthlyInvestmentCapacity = Number(updateData.investmentCapacity || updateData.monthlyInvestmentCapacity);
     }
     if (updateData.notificationDays !== undefined || updateData.notificationDaysBefore !== undefined) {
-      dataToUpdate.notificationDaysBefore = Number(updateData.notificationDays || updateData.notificationDaysBefore);
+      const days = Number(updateData.notificationDays || updateData.notificationDaysBefore);
+      // Limitar entre 1 e 5 dias
+      dataToUpdate.notificationDaysBefore = Math.min(Math.max(days, 1), 5);
+    }
+    if (updateData.emailNotificationsEnabled !== undefined) {
+      dataToUpdate.emailNotificationsEnabled = Boolean(updateData.emailNotificationsEnabled);
     }
     if (updateData.savingsGoal !== undefined) dataToUpdate.savingsGoal = Number(updateData.savingsGoal);
     if (updateData.currency) dataToUpdate.currency = updateData.currency;
@@ -249,6 +256,7 @@ export class AuthService {
         monthlyInvestmentCapacity: true,
         investorProfile: true,
         notificationDaysBefore: true,
+        emailNotificationsEnabled: true,
         savingsGoal: true,
         savingsGoalDeadline: true,
         createdAt: true,
@@ -262,6 +270,7 @@ export class AuthService {
       investmentProfile: updatedUser.investorProfile,
       investmentCapacity: updatedUser.monthlyInvestmentCapacity,
       notificationDays: updatedUser.notificationDaysBefore,
+      emailNotifications: updatedUser.emailNotificationsEnabled,
       savingsDeadline: updatedUser.savingsGoalDeadline
     };
   }
