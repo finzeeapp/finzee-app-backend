@@ -11,6 +11,10 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
+    console.log('🔧 Inicializando EmailService...');
+    console.log('📧 GMAIL_USER:', process.env.GMAIL_USER ? '✓ Configurado' : '✗ NÃO CONFIGURADO');
+    console.log('🔑 GMAIL_APP_PASSWORD:', process.env.GMAIL_APP_PASSWORD ? '✓ Configurado' : '✗ NÃO CONFIGURADO');
+    
     // Configuração do Gmail SMTP com pool de conexões e timeout
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -25,8 +29,12 @@ export class EmailService {
       rateLimit: 5, // Máximo de 5 mensagens por segundo
       connectionTimeout: 10000, // Timeout de 10 segundos
       greetingTimeout: 5000,
-      socketTimeout: 15000
+      socketTimeout: 15000,
+      logger: true, // Ativa logs do nodemailer
+      debug: true // Ativa modo debug
     });
+    
+    console.log('✅ Transporter SMTP criado');
   }
 
   /**
@@ -48,9 +56,16 @@ export class EmailService {
         return false;
       }
 
+      console.log(`📤 Preparando envio para ${userEmail}...`);
+      console.log(`   - Despesas atrasadas: ${overdue.length}`);
+      console.log(`   - Despesas vencendo: ${dueSoon.length}`);
+      console.log(`   - Nível de urgência: ${urgencyLevel}`);
+
       const subject = this.getEmailSubject(urgencyLevel, overdue.length, dueSoon.length);
       const html = this.buildEmailTemplate(userName, data);
 
+      console.log(`🔌 Tentando conectar ao SMTP do Gmail...`);
+      
       // Timeout de 10 segundos por e-mail
       const sendPromise = this.transporter.sendMail({
         from: `"Finzee - Controle Financeiro" <${process.env.GMAIL_USER}>`,
@@ -59,7 +74,7 @@ export class EmailService {
         html
       });
 
-      await Promise.race([
+      const result = await Promise.race([
         sendPromise,
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout ao enviar e-mail')), 10000)
@@ -68,15 +83,24 @@ export class EmailService {
 
       const duration = Date.now() - startTime;
       console.log(`✅ E-mail enviado para ${userEmail} em ${duration}ms`);
+      console.log(`   Response:`, result);
       return true;
       
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      console.error(`❌ Erro ao enviar e-mail para ${userEmail} após ${duration}ms:`, error.message);
+      console.error(`❌ ERRO DETALHADO ao enviar e-mail para ${userEmail} após ${duration}ms:`);
+      console.error(`   - Mensagem: ${error.message}`);
+      console.error(`   - Código: ${error.code || 'N/A'}`);
+      console.error(`   - Stack: ${error.stack || 'N/A'}`);
+      console.error(`   - Response: ${error.response || 'N/A'}`);
+      console.error(`   - ResponseCode: ${error.responseCode || 'N/A'}`);
+      console.error(`   - Command: ${error.command || 'N/A'}`);
       
       // Se for timeout ou erro de conexão, não trava o processo
       if (error.message.includes('Timeout') || error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET') {
-        console.log(`⏭️ Pulando ${userEmail} devido a timeout`);
+        console.log(`⏭️ Pulando ${userEmail} devido a timeout/conexão`);
+      } else if (error.responseCode) {
+        console.log(`⚠️ Erro SMTP ${error.responseCode}: ${error.response}`);
       }
       
       return false;
