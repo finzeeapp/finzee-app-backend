@@ -19,11 +19,20 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Permitir localhost e qualquer domínio .vercel.app
-  if (origin && (
-    origin.includes('localhost') || 
-    origin.endsWith('.vercel.app')
-  )) {
+  // URLs permitidas via variável de ambiente (separadas por vírgula)
+  const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(url => url.trim())
+    : [];
+  
+  // Verificar se a origem está na lista de permitidas
+  const isAllowed = origin && (
+    allowedOrigins.includes(origin) ||
+    allowedOrigins.some(allowed => 
+      allowed.includes('*') ? origin.includes(allowed.replace('*', '')) : false
+    )
+  );
+  
+  if (isAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }

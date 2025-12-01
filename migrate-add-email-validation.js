@@ -1,4 +1,5 @@
-/**
+
+l/**
  * Script para aplicar migration de validação de email
  * Execute: node migrate-add-email-validation.js
  */
