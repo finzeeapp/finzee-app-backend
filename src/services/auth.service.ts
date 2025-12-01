@@ -19,9 +19,12 @@ export class AuthService {
     name: string;
     monthlyIncome?: number;
   }): Promise<{ token: string; user: UserResponse }> {
+    // Normalizar email para lowercase
+    const normalizedEmail = userData.email.toLowerCase().trim();
+    
     // Verificar se o email já existe
     const existingUser = await prisma.user.findUnique({
-      where: { email: userData.email },
+      where: { email: normalizedEmail },
       select: { id: true }
     });
     
@@ -35,7 +38,7 @@ export class AuthService {
     // Criar usuário
     const user = await prisma.user.create({
       data: {
-        email: userData.email,
+        email: normalizedEmail,
         name: userData.name,
         passwordHash,
         monthlyIncome: userData.monthlyIncome,
@@ -60,8 +63,11 @@ export class AuthService {
     email: string;
     password: string;
   }): Promise<{ token: string; user: UserResponse }> {
+    // Normalizar email para lowercase
+    const normalizedEmail = credentials.email.toLowerCase().trim();
+    
     const user = await prisma.user.findUnique({
-      where: { email: credentials.email },
+      where: { email: normalizedEmail },
       select: {
         id: true,
         email: true,
@@ -117,8 +123,11 @@ export class AuthService {
   }
 
   async forgotPassword(email: string): Promise<{ message: string }> {
+    // Normalizar email para lowercase
+    const normalizedEmail = email.toLowerCase().trim();
+    
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       select: { id: true, email: true }
     });
 
