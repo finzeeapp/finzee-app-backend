@@ -17,4 +17,7 @@ router.post('/test-email', (req, res) => notificationController.testEmailNotific
 // Endpoint de teste direto (força envio mesmo sem despesas)
 router.post('/test-direct', (req, res) => notificationController.testDirectEmail(req, res));
 
+// Endpoint de diagnóstico SMTP (só testa conexão, não envia e-mail)
+router.get('/test-smtp', (req, res) => notificationController.testSmtpConnection(req, res));
+
 export { router as notificationRoutes };
