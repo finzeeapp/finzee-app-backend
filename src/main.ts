@@ -8,6 +8,7 @@ import { notificationRoutes } from './routes/notification.routes';
 import { dashboardRoutes } from './routes/dashboard.routes';
 import reportsRoutes from './routes/reports.routes';
 import schedulerRoutes from './routes/scheduler.routes';
+import { webhookRoutes } from './routes/webhook.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { SchedulerService } from './services/scheduler-simple.service';
 import { DailyNotificationScheduler } from './services/daily-notification.scheduler';
@@ -63,6 +64,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/scheduler', schedulerRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

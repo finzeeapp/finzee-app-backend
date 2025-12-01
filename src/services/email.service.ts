@@ -52,13 +52,20 @@ export class EmailService {
       if (response.error) {
         console.error(`❌ Erro ao enviar email para ${userEmail}: ${response.error.message}`);
         
-        // Detectar email bounced (erro 550 ou "does not exist")
+        // Detectar email bounced (qualquer erro de bounce, suppression list, etc)
         const errorMessage = response.error.message?.toLowerCase() || '';
+        const errorName = response.error.name?.toLowerCase() || '';
+        
         const isBounced = 
           errorMessage.includes('does not exist') ||
           errorMessage.includes('bounce') ||
+          errorMessage.includes('bounced') ||
           errorMessage.includes('invalid') ||
-          errorMessage.includes('550');
+          errorMessage.includes('suppression') ||
+          errorMessage.includes('suppress') ||
+          errorMessage.includes('blocked') ||
+          errorMessage.includes('550') ||
+          errorName.includes('validation');
         
         if (isBounced) {
           try {
@@ -66,7 +73,7 @@ export class EmailService {
               where: { email: userEmail },
               data: { emailBounced: true }
             });
-            console.log(`🚫 Email bounced: ${userEmail}`);
+            console.log(`🚫 Email bounced/suppressed: ${userEmail}`);
           } catch (dbError: any) {
             console.error(`Erro ao marcar emailBounced: ${dbError.message}`);
           }
@@ -75,6 +82,7 @@ export class EmailService {
         return false;
       }
 
+      // Sucesso no envio
       return true;
       
     } catch (error: any) {
