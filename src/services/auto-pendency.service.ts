@@ -25,8 +25,6 @@ export class AutoPendencyService {
     generated: number;
     message: string;
   }> {
-    console.log(`🔍 Verificando pendências para usuário ${userId}...`);
-    
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     
@@ -41,16 +39,18 @@ export class AutoPendencyService {
         }
       });
 
-      console.log(`📋 Total de despesas registradas: ${registeredExpenses.length}`);
-
-      // 2. Processar cada despesa registrada
+      // 2. Processar cada despesa registrada (sem logs individuais)
       for (const expense of registeredExpenses) {
         const wasGenerated = await this.generateMonthlyExpense(expense, currentMonth);
         if (wasGenerated) generatedCount++;
       }
 
       const message = this.buildResultMessage(generatedCount);
-      console.log(`✅ ${message}`);
+      
+      // Log apenas se gerou algo
+      if (generatedCount > 0) {
+        console.log(`✅ ${message} para usuário ${userId}`);
+      }
 
       return {
         generated: generatedCount,
@@ -77,7 +77,7 @@ export class AutoPendencyService {
       });
 
       if (existingExpense) {
-        console.log(`⏭️  Despesa já existe para ${baseExpense.title} no mês ${currentMonth}`);
+        // Não loga se já existe (silencioso)
         return false;
       }
 
@@ -93,7 +93,6 @@ export class AutoPendencyService {
 
         // Se já gerou todas as parcelas, não gera mais
         if (generatedCount >= baseExpense.totalInstallments) {
-          console.log(`✅ Todas as parcelas de ${baseExpense.title} já foram geradas`);
           return false;
         }
 
@@ -109,7 +108,6 @@ export class AutoPendencyService {
         
         // Se a diferença de meses é menor que quantas parcelas já foram geradas, não gera ainda
         if (monthsDiff < generatedCount) {
-          console.log(`⏭️  Ainda não é o mês de gerar parcela ${generatedCount + 1} de ${baseExpense.title}`);
           return false;
         }
       }
@@ -149,7 +147,6 @@ export class AutoPendencyService {
         });
         
         if (existingInstallment) {
-          console.log(`⏭️  Parcela ${currentInstallment} já existe para ${baseExpense.title}`);
           return false;
         }
         
@@ -180,10 +177,11 @@ export class AutoPendencyService {
         }
       });
 
-      console.log(`✅ Despesa gerada: ${newExpense.title} - Vencimento: ${newExpense.dueDate}`);
+      // Log apenas se gerou
+      console.log(`✅ Gerada: ${newExpense.title}`);
 
-      // Criar notificação
-      await this.createExpenseNotification(newExpense);
+      // Criar notificação (sem notificação por enquanto para não lotar)
+      // await this.createExpenseNotification(newExpense);
 
       return true;
     } catch (error: any) {

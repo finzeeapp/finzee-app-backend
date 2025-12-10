@@ -123,18 +123,12 @@ export class SchedulerService {
     const allExpenses = this.db.getExpenses();
     let generatedCount = 0;
 
-    console.log(`🔍 Verificando usuário ${userId} para o mês ${currentMonth}`);
-    console.log(`📊 Total de despesas no banco: ${allExpenses.length}`);
-
     // 1. Processar despesas recorrentes
     const fixedExpenses = allExpenses.filter(e => 
       e.userId === userId &&
       e.type === 'recurrent' && 
       e.isRecurring === true
     );
-
-    console.log(`🏠 Despesas recorrentes encontradas: ${fixedExpenses.length}`);
-    fixedExpenses.forEach(e => console.log(`   - ${e.title} (${e.type})`));
 
     for (const expense of fixedExpenses) {
       const generated = await this.generateRecurringExpense(expense, currentMonth);
@@ -148,15 +142,14 @@ export class SchedulerService {
       e.isRecurring === true
     );
 
-    console.log(`💳 Despesas parceladas/financiamentos encontradas: ${installmentExpenses.length}`);
-    installmentExpenses.forEach(e => console.log(`   - ${e.title} (${e.totalInstallments}x)`));
-
     for (const expense of installmentExpenses) {
       const generated = await this.generateInstallmentExpense(expense, currentMonth);
       if (generated) generatedCount++;
     }
 
-    console.log(`👤 Usuário ${userId}: ${generatedCount} pendências geradas no total`);
+    if (generatedCount > 0) {
+      console.log(`👤 Usuário ${userId}: ${generatedCount} pendências geradas`);
+    }
     return generatedCount;
   }
 
@@ -172,7 +165,6 @@ export class SchedulerService {
       );
 
       if (existingExpense) {
-        console.log(`⏭️ Despesa recorrente já existe para ${baseExpense.title} no mês ${currentMonth}`);
         return false;
       }
 
