@@ -35,18 +35,21 @@ export class DueDateCheckerService {
       }
     });
 
-    // Processar usuários em PARALELO (máximo 3 por vez)
-    const batchSize = 3;
+    // Processar usuários SEQUENCIALMENTE com delay para respeitar rate limit do Resend
+    // Resend free plan: máximo 2 requisições/segundo = 1 a cada 500ms
     const results: NotificationResult[] = [];
 
-    for (let i = 0; i < users.length; i += batchSize) {
-      const batch = users.slice(i, i + batchSize);
+    for (let i = 0; i < users.length; i++) {
+      const user = users[i];
       
-      const batchResults = await Promise.all(
-        batch.map(user => this.checkAndNotifyUser(user))
-      );
+      const result = await this.checkAndNotifyUser(user);
+      results.push(result);
       
-      results.push(...batchResults);
+      // Delay de 600ms entre envios para respeitar rate limit (2 req/s)
+      // Apenas se enviou email e não é o último usuário
+      if (result.sent && i < users.length - 1) {
+        await this.delay(600);
+      }
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -308,5 +311,12 @@ export class DueDateCheckerService {
       orderBy: { sentAt: 'desc' },
       take: limit
     });
+  }
+
+  /**
+   * Adiciona delay entre requisições para respeitar rate limit
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
