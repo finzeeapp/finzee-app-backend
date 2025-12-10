@@ -27,8 +27,6 @@ export class AutoPendencyService {
   }> {
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    
-    let generatedCount = 0;
 
     try {
       // 1. Buscar todas as despesas registradas (templates) do usuário
@@ -39,18 +37,10 @@ export class AutoPendencyService {
         }
       });
 
-      // 2. Processar cada despesa registrada (sem logs individuais)
-      for (const expense of registeredExpenses) {
-        const wasGenerated = await this.generateMonthlyExpense(expense, currentMonth);
-        if (wasGenerated) generatedCount++;
-      }
+      // 2. Processar TODAS as despesas em lote de uma vez
+      const generatedCount = await this.generateMonthlyExpensesBatch(registeredExpenses, currentMonth);
 
       const message = this.buildResultMessage(generatedCount);
-      
-      // Log apenas se gerou algo
-      if (generatedCount > 0) {
-        console.log(`✅ ${message} para usuário ${userId}`);
-      }
 
       return {
         generated: generatedCount,
@@ -59,6 +49,164 @@ export class AutoPendencyService {
 
     } catch (error: any) {
       console.error('❌ Erro ao verificar pendências:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Gera despesas mensais em lote (otimizado para performance)
+   * Processa todas as despesas de uma vez com queries em lote
+   */
+  private async generateMonthlyExpensesBatch(baseExpenses: any[], currentMonth: string): Promise<number> {
+    try {
+      if (baseExpenses.length === 0) return 0;
+
+      const [year, month] = currentMonth.split('-').map(Number);
+      const parentIds = baseExpenses.map(e => e.id);
+
+      // 1. CONSULTA EM LOTE: Buscar todas as despesas já geradas de uma vez
+      const existingExpenses = await prisma.expense.findMany({
+        where: {
+          parentExpenseId: { in: parentIds },
+          OR: [
+            { referenceMonth: currentMonth },
+            { isGenerated: true }
+          ]
+        },
+        select: {
+          id: true,
+          parentExpenseId: true,
+          referenceMonth: true,
+          currentInstallment: true,
+          isGenerated: true
+        }
+      });
+
+      // 2. Criar mapas para consultas rápidas em memória
+      const expensesInCurrentMonth = new Set(
+        existingExpenses
+          .filter(e => e.referenceMonth === currentMonth)
+          .map(e => e.parentExpenseId)
+      );
+
+      const installmentsByParent = existingExpenses.reduce((acc, e) => {
+        if (!acc[e.parentExpenseId!]) {
+          acc[e.parentExpenseId!] = {
+            generatedCount: 0,
+            installments: new Set<number>()
+          };
+        }
+        if (e.isGenerated) acc[e.parentExpenseId!].generatedCount++;
+        if (e.currentInstallment) acc[e.parentExpenseId!].installments.add(e.currentInstallment);
+        return acc;
+      }, {} as Record<string, { generatedCount: number; installments: Set<number> }>);
+
+      // 3. Preparar dados para criação em lote
+      const expensesToCreate: any[] = [];
+
+      for (const baseExpense of baseExpenses) {
+        // Verificar se já existe para este mês
+        if (expensesInCurrentMonth.has(baseExpense.id)) {
+          continue;
+        }
+
+        let shouldGenerate = true;
+        let currentInstallment: number | undefined = undefined;
+        let title = baseExpense.title;
+        let amount = baseExpense.amount;
+
+        // Lógica para parceladas e financiamentos
+        if ((baseExpense.type === 'installment' || baseExpense.type === 'financing') && baseExpense.totalInstallments) {
+          const installmentInfo = installmentsByParent[baseExpense.id] || { generatedCount: 0, installments: new Set() };
+
+          // Se já gerou todas as parcelas, não gera mais
+          if (installmentInfo.generatedCount >= baseExpense.totalInstallments) {
+            continue;
+          }
+
+          // Calcular qual parcela deve ser gerada
+          const startDate = new Date(baseExpense.dueDate);
+          const startYear = startDate.getFullYear();
+          const startMonthNum = startDate.getMonth() + 1;
+          
+          const monthsDiff = (year - startYear) * 12 + (month - startMonthNum);
+          
+          // Se a diferença de meses é menor que quantas parcelas já foram geradas, não gera ainda
+          if (monthsDiff < installmentInfo.generatedCount) {
+            continue;
+          }
+
+          currentInstallment = monthsDiff + 1;
+
+          // Verificar se essa parcela específica já existe
+          if (installmentInfo.installments.has(currentInstallment)) {
+            continue;
+          }
+
+          amount = baseExpense.amount / baseExpense.totalInstallments;
+          title = `${baseExpense.title} (${currentInstallment}/${baseExpense.totalInstallments})`;
+        }
+
+        if (!shouldGenerate) continue;
+
+        // Calcular data de vencimento
+        const dueDay = baseExpense.dueDay || 1;
+        const lastDayOfMonth = new Date(year, month, 0).getDate();
+        const adjustedDueDay = Math.min(dueDay, lastDayOfMonth);
+        const dueDate = this.formatDateLocal(year, month, adjustedDueDay);
+
+        // Adicionar à lista de despesas a criar
+        const expenseData = {
+          userId: baseExpense.userId,
+          title,
+          description: baseExpense.description,
+          amount: Number(amount.toFixed(2)),
+          category: baseExpense.category,
+          type: baseExpense.type,
+          dueDate: new Date(dueDate),
+          dueDay: adjustedDueDay,
+          status: 'PENDING',
+          isPaid: false,
+          referenceMonth: currentMonth,
+          isRecurring: false,
+          isGenerated: true,
+          parentExpenseId: baseExpense.id,
+          currentInstallment,
+          totalInstallments: baseExpense.totalInstallments,
+          notes: baseExpense.notes
+        };
+
+        expensesToCreate.push(expenseData);
+      }
+
+      // 4. CRIAR TODAS AS DESPESAS DE UMA VEZ
+      if (expensesToCreate.length === 0) {
+        return 0;
+      }
+
+      const createdExpenses = await prisma.$transaction(
+        expensesToCreate.map(data => prisma.expense.create({ data }))
+      );
+
+      console.log(`✅ ${createdExpenses.length} nova${createdExpenses.length > 1 ? 's' : ''} pendência${createdExpenses.length > 1 ? 's' : ''} gerada${createdExpenses.length > 1 ? 's' : ''}`);
+
+      // 5. CRIAR NOTIFICAÇÕES EM LOTE
+      const notifications = createdExpenses.map(expense => ({
+        userId: expense.userId,
+        title: 'Nova Pendência Gerada',
+        message: `A despesa "${expense.title}" foi adicionada às suas pendências do mês com vencimento em ${new Date(expense.dueDate).toLocaleDateString('pt-BR')}.`,
+        type: 'expense_generated',
+        relatedEntityId: expense.id
+      }));
+
+      await Promise.all(
+        notifications.map(notif => this.notificationService.create(notif))
+      );
+
+      return createdExpenses.length;
+
+    } catch (error: any) {
+      console.error(`❌ Erro ao gerar despesas em lote:`, error);
       throw error;
     }
   }
@@ -77,7 +225,7 @@ export class AutoPendencyService {
       });
 
       if (existingExpense) {
-        // Não loga se já existe (silencioso)
+        console.log(`⏭️  Despesa já existe para ${baseExpense.title} no mês ${currentMonth}`);
         return false;
       }
 
@@ -93,6 +241,7 @@ export class AutoPendencyService {
 
         // Se já gerou todas as parcelas, não gera mais
         if (generatedCount >= baseExpense.totalInstallments) {
+          console.log(`✅ Todas as parcelas de ${baseExpense.title} já foram geradas`);
           return false;
         }
 
@@ -108,6 +257,7 @@ export class AutoPendencyService {
         
         // Se a diferença de meses é menor que quantas parcelas já foram geradas, não gera ainda
         if (monthsDiff < generatedCount) {
+          console.log(`⏭️  Ainda não é o mês de gerar parcela ${generatedCount + 1} de ${baseExpense.title}`);
           return false;
         }
       }
@@ -147,6 +297,7 @@ export class AutoPendencyService {
         });
         
         if (existingInstallment) {
+          console.log(`⏭️  Parcela ${currentInstallment} já existe para ${baseExpense.title}`);
           return false;
         }
         
@@ -177,11 +328,10 @@ export class AutoPendencyService {
         }
       });
 
-      // Log apenas se gerou
-      console.log(`✅ Gerada: ${newExpense.title}`);
+      console.log(`✅ Despesa gerada: ${newExpense.title} - Vencimento: ${newExpense.dueDate}`);
 
-      // Criar notificação (sem notificação por enquanto para não lotar)
-      // await this.createExpenseNotification(newExpense);
+      // Criar notificação
+      await this.createExpenseNotification(newExpense);
 
       return true;
     } catch (error: any) {

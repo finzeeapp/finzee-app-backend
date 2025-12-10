@@ -18,8 +18,6 @@ export class AuthService {
     password: string;
     name: string;
     monthlyIncome?: number;
-    incomeType?: 'FIXED' | 'VARIABLE';
-    estimatedMonthlyIncome?: number;
   }): Promise<{ token: string; user: UserResponse }> {
     // Normalizar email para lowercase
     const normalizedEmail = userData.email.toLowerCase().trim();
@@ -43,9 +41,7 @@ export class AuthService {
         email: normalizedEmail,
         name: userData.name,
         passwordHash,
-        incomeType: userData.incomeType || 'FIXED',
-        monthlyIncome: userData.incomeType === 'FIXED' ? userData.monthlyIncome : null,
-        estimatedMonthlyIncome: userData.incomeType === 'VARIABLE' ? userData.estimatedMonthlyIncome : null,
+        monthlyIncome: userData.monthlyIncome,
         investorProfile: 'moderado'
       }
     });
@@ -254,11 +250,7 @@ export class AuthService {
       }
     }
     
-    // Campos de renda
-    if (updateData.incomeType) dataToUpdate.incomeType = updateData.incomeType;
     if (updateData.monthlyIncome !== undefined) dataToUpdate.monthlyIncome = Number(updateData.monthlyIncome);
-    if (updateData.estimatedMonthlyIncome !== undefined) dataToUpdate.estimatedMonthlyIncome = Number(updateData.estimatedMonthlyIncome);
-    
     if (updateData.investmentProfile || updateData.investorProfile) {
       dataToUpdate.investorProfile = updateData.investmentProfile || updateData.investorProfile;
     }
