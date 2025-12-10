@@ -12,31 +12,37 @@ datasource db {
 }
 
 model User {
-  id                        String    @id @default(uuid())
-  email                     String    @unique
+  id                        String      @id @default(uuid())
+  email                     String      @unique
   name                      String
   passwordHash              String?
-  monthlyIncome             Float?
+  
+  // Campos de renda
+  incomeType                IncomeType? @default(FIXED)
+  monthlyIncome             Float?      // Renda fixa mensal (para FIXED) ou não usado
+  estimatedMonthlyIncome    Float?      // Estimativa de renda mensal (para VARIABLE)
+  
   monthlyInvestmentCapacity Float?
-  investorProfile           String?   @db.VarChar(20)
-  notificationDaysBefore    Int?      @default(3)
-  emailNotificationsEnabled Boolean?  @default(true)
+  investorProfile           String?     @db.VarChar(20)
+  notificationDaysBefore    Int?        @default(3)
+  emailNotificationsEnabled Boolean?    @default(true)
   lastNotificationSent      DateTime?
-  emailBounced              Boolean?  @default(false)
-  emailVerified             Boolean?  @default(false)
+  emailBounced              Boolean?    @default(false)
+  emailVerified             Boolean?    @default(false)
   savingsGoal               Float?
   savingsGoalDeadline       DateTime?
-  currency                  String?   @default("BRL") @db.VarChar(3)
+  currency                  String?     @default("BRL") @db.VarChar(3)
   resetToken                String?
   resetTokenExpiry          DateTime?
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
 
   // Relations
   expenses         Expense[]
   investments      Investment[]
   notifications    Notification[]
   notificationLogs NotificationLog[]
+  incomes          Income[]
 
   @@map("users")
 }
@@ -132,4 +138,28 @@ model NotificationLog {
   @@index([userId])
   @@index([sentAt])
   @@map("notification_logs")
+}
+
+model Income {
+  id          String   @id @default(uuid())
+  userId      String
+  description String
+  amount      Float
+  category    String?  // Salário, Freelance, Vendas, Bônus, Outros
+  date        DateTime // Data do recebimento
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@map("incomes")
+}
+
+enum IncomeType {
+  FIXED    // Renda fixa mensal
+  VARIABLE // Renda variável
 }

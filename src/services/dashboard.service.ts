@@ -1,7 +1,13 @@
 import { prisma } from './prisma.service';
+import { IncomeService } from './income.service';
 
 interface Dashboard {
-  monthlyIncome: number;
+  // Renda
+  incomeType: string; // FIXED ou VARIABLE
+  monthlyIncome: number; // Renda fixa ou renda estimada
+  realIncomeThisMonth?: number; // Renda real acumulada (apenas para VARIABLE)
+  averageMonthlyIncome?: number; // Média mensal (apenas para VARIABLE)
+  
   availableBalance: number;
   totalExpenses: number;
   pendingExpenses: number;
@@ -17,6 +23,7 @@ interface Dashboard {
 }
 
 export class DashboardService {
+  private incomeService = new IncomeService();
 
   private getExpenseStatus(expense: any, dueDate: string | Date): string {
     if (expense.isPaid) {
@@ -44,7 +51,9 @@ export class DashboardService {
       where: { id: userId },
       select: {
         monthlyIncome: true,
-        monthlyInvestmentCapacity: true
+        monthlyInvestmentCapacity: true,
+        incomeType: true,
+        estimatedMonthlyIncome: true
       }
     });
 
@@ -66,8 +75,26 @@ export class DashboardService {
     const pendingExpenses = monthlyExpenses
       .filter(e => !e.isPaid)
       .reduce((sum, e) => sum + Number(e.amount), 0);
-    const monthlyIncome = Number(user?.monthlyIncome) || 0;
-    const availableBalance = monthlyIncome - totalExpenses;
+
+    // Calcular renda baseado no tipo
+    const incomeType = user?.incomeType || 'FIXED';
+    let monthlyIncome = 0;
+    let realIncomeThisMonth: number | undefined;
+    let averageMonthlyIncome: number | undefined;
+
+    if (incomeType === 'FIXED') {
+      // Renda fixa: usar monthlyIncome cadastrado
+      monthlyIncome = Number(user?.monthlyIncome) || 0;
+    } else {
+      // Renda variável: usar estimativa + calcular renda real
+      monthlyIncome = Number(user?.estimatedMonthlyIncome) || 0;
+      realIncomeThisMonth = await this.incomeService.getRealIncomeThisMonth(userId);
+      
+      const stats = await this.incomeService.getStats(userId);
+      averageMonthlyIncome = stats.averageMonthly;
+    }
+
+    const availableBalance = (realIncomeThisMonth || monthlyIncome) - totalExpenses;
 
     // Calcular total de investimentos (valor atual)
     const totalInvestments = investments.reduce((sum, investment) => {
@@ -99,7 +126,8 @@ export class DashboardService {
         };
       });
 
-    return {
+    const dashboard: Dashboard = {
+      incomeType,
       monthlyIncome: parseFloat(monthlyIncome.toFixed(2)),
       availableBalance: parseFloat(availableBalance.toFixed(2)),
       totalExpenses: parseFloat(totalExpenses.toFixed(2)),
@@ -107,5 +135,13 @@ export class DashboardService {
       totalInvestments: parseFloat(totalInvestments.toFixed(2)),
       upcomingExpenses: upcomingExpensesList
     };
+
+    // Adicionar campos específicos para renda variável
+    if (incomeType === 'VARIABLE') {
+      dashboard.realIncomeThisMonth = realIncomeThisMonth ? parseFloat(realIncomeThisMonth.toFixed(2)) : 0;
+      dashboard.averageMonthlyIncome = averageMonthlyIncome ? parseFloat(averageMonthlyIncome.toFixed(2)) : 0;
+    }
+
+    return dashboard;
   }
 }
