@@ -10,9 +10,11 @@ import reportsRoutes from './routes/reports.routes';
 import schedulerRoutes from './routes/scheduler.routes';
 import { webhookRoutes } from './routes/webhook.routes';
 import { incomeRoutes } from './routes/income.routes';
+import incomeResetRoutes from './routes/income-reset.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { SchedulerService } from './services/scheduler-simple.service';
 import { DailyNotificationScheduler } from './services/daily-notification.scheduler';
+import { IncomeResetService } from './services/income-reset.service';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -62,6 +64,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/investments', investmentRoutes);
 app.use('/api/incomes', incomeRoutes);
+app.use('/api/income-reset', incomeResetRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportsRoutes);
@@ -83,6 +86,11 @@ console.log('📅 Scheduler de pendências mensais inicializado');
 // Inicializar o scheduler de notificações diárias
 const notificationScheduler = new DailyNotificationScheduler();
 notificationScheduler.start();
+
+// Inicializar o scheduler de reset mensal de entradas
+const incomeResetService = new IncomeResetService();
+incomeResetService.startScheduler();
+console.log('💰 Scheduler de reset mensal de entradas inicializado');
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server is running on port ${PORT}`);
