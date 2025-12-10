@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { IncomeController } from '../controllers/income.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
 const incomeController = new IncomeController();
 
 // Todas as rotas requerem autenticação
-router.use(authenticateToken);
+router.use(authMiddleware);
 
 // POST /api/incomes - Criar novo lançamento de renda
 router.post('/', (req, res) => incomeController.create(req, res));
