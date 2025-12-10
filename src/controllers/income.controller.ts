@@ -1,5 +1,6 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { IncomeService } from '../services/income.service';
+import { AuthRequest } from '../middleware/auth.middleware';
 
 const incomeService = new IncomeService();
 
@@ -7,9 +8,14 @@ export class IncomeController {
   /**
    * POST /api/incomes - Criar novo lançamento de renda
    */
-  async create(req: Request, res: Response) {
+  async create(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const userId = req.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
       const { description, amount, category, date, notes } = req.body;
 
       if (!description || !amount || !date) {
@@ -36,9 +42,14 @@ export class IncomeController {
   /**
    * GET /api/incomes - Listar rendas do usuário
    */
-  async list(req: Request, res: Response) {
+  async list(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const userId = req.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
       const { startDate, endDate, category, limit } = req.query;
 
       const options: any = {};
@@ -59,9 +70,14 @@ export class IncomeController {
   /**
    * GET /api/incomes/stats - Estatísticas de renda
    */
-  async getStats(req: Request, res: Response) {
+  async getStats(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const userId = req.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
       const { year, month } = req.query;
 
       const stats = await incomeService.getStats(
@@ -80,9 +96,14 @@ export class IncomeController {
   /**
    * GET /api/incomes/:id - Buscar renda por ID
    */
-  async getById(req: Request, res: Response) {
+  async getById(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const userId = req.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
       const { id } = req.params;
 
       const income = await incomeService.getById(id, userId);
@@ -101,9 +122,14 @@ export class IncomeController {
   /**
    * PUT /api/incomes/:id - Atualizar renda
    */
-  async update(req: Request, res: Response) {
+  async update(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const userId = req.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
       const { id } = req.params;
       const { description, amount, category, date, notes } = req.body;
 
@@ -130,9 +156,14 @@ export class IncomeController {
   /**
    * DELETE /api/incomes/:id - Deletar renda
    */
-  async delete(req: Request, res: Response) {
+  async delete(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const userId = req.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
       const { id } = req.params;
 
       const result = await incomeService.delete(id, userId);
@@ -151,9 +182,14 @@ export class IncomeController {
   /**
    * GET /api/incomes/current-month/total - Total do mês atual
    */
-  async getCurrentMonthTotal(req: Request, res: Response) {
+  async getCurrentMonthTotal(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const userId = req.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
       const total = await incomeService.getRealIncomeThisMonth(userId);
 
       res.json({ total });
