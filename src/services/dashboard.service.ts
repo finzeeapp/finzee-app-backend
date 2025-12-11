@@ -7,6 +7,7 @@ interface Dashboard {
   monthlyIncome: number; // Renda fixa ou renda estimada
   realIncomeThisMonth?: number; // Renda real acumulada (apenas para VARIABLE)
   averageMonthlyIncome?: number; // Média mensal (apenas para VARIABLE)
+  estimatedMonthlyIncome?: number; // Meta mensal para VARIABLE
   
   availableBalance: number;
   totalExpenses: number;
@@ -82,19 +83,22 @@ export class DashboardService {
     let realIncomeThisMonth: number | undefined;
     let averageMonthlyIncome: number | undefined;
 
+    // Buscar renda real do mês para todos os usuários (FIXED e VARIABLE)
+    realIncomeThisMonth = await this.incomeService.getRealIncomeThisMonth(userId);
+
     if (incomeType === 'FIXED') {
-      // Renda fixa: usar monthlyIncome cadastrado
-      monthlyIncome = Number(user?.monthlyIncome) || 0;
+      // Renda fixa: usar monthlyIncome cadastrado + entradas extras do mês
+      const baseIncome = Number(user?.monthlyIncome) || 0;
+      monthlyIncome = baseIncome + (realIncomeThisMonth || 0);
     } else {
       // Renda variável: usar estimativa + calcular renda real
       monthlyIncome = Number(user?.estimatedMonthlyIncome) || 0;
-      realIncomeThisMonth = await this.incomeService.getRealIncomeThisMonth(userId);
       
       const stats = await this.incomeService.getStats(userId);
       averageMonthlyIncome = stats.averageMonthly;
     }
 
-    const availableBalance = (realIncomeThisMonth || monthlyIncome) - totalExpenses;
+    const availableBalance = (incomeType === 'FIXED' ? monthlyIncome : (realIncomeThisMonth || monthlyIncome)) - totalExpenses;
 
     // Calcular total de investimentos (valor atual)
     const totalInvestments = investments.reduce((sum, investment) => {
@@ -140,6 +144,10 @@ export class DashboardService {
     if (incomeType === 'VARIABLE') {
       dashboard.realIncomeThisMonth = realIncomeThisMonth ? parseFloat(realIncomeThisMonth.toFixed(2)) : 0;
       dashboard.averageMonthlyIncome = averageMonthlyIncome ? parseFloat(averageMonthlyIncome.toFixed(2)) : 0;
+      dashboard.estimatedMonthlyIncome = Number(user?.estimatedMonthlyIncome) || 0;
+    } else {
+      // Para renda fixa, também incluir realIncomeThisMonth para debug/transparência
+      dashboard.realIncomeThisMonth = realIncomeThisMonth ? parseFloat(realIncomeThisMonth.toFixed(2)) : 0;
     }
 
     return dashboard;

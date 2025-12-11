@@ -199,7 +199,9 @@ export class AuthService {
         id: true,
         email: true,
         name: true,
+        incomeType: true,
         monthlyIncome: true,
+        estimatedMonthlyIncome: true,
         monthlyInvestmentCapacity: true,
         investorProfile: true,
         notificationDaysBefore: true,
@@ -219,6 +221,8 @@ export class AuthService {
     // Return with frontend-compatible field names
     return {
       ...user,
+      incomeType: user.incomeType,
+      estimatedMonthlyIncome: user.estimatedMonthlyIncome,
       investmentProfile: user.investorProfile,
       investmentCapacity: user.monthlyInvestmentCapacity,
       notificationDays: user.notificationDaysBefore,
@@ -251,6 +255,8 @@ export class AuthService {
     }
     
     if (updateData.monthlyIncome !== undefined) dataToUpdate.monthlyIncome = Number(updateData.monthlyIncome);
+    if (updateData.estimatedMonthlyIncome !== undefined) dataToUpdate.estimatedMonthlyIncome = Number(updateData.estimatedMonthlyIncome);
+    if (updateData.incomeType) dataToUpdate.incomeType = updateData.incomeType;
     if (updateData.investmentProfile || updateData.investorProfile) {
       dataToUpdate.investorProfile = updateData.investmentProfile || updateData.investorProfile;
     }
@@ -279,13 +285,16 @@ export class AuthService {
         id: true,
         email: true,
         name: true,
+        incomeType: true,
         monthlyIncome: true,
+        estimatedMonthlyIncome: true,
         monthlyInvestmentCapacity: true,
         investorProfile: true,
         notificationDaysBefore: true,
         emailNotificationsEnabled: true,
         savingsGoal: true,
         savingsGoalDeadline: true,
+        currency: true,
         createdAt: true,
         updatedAt: true
       }
@@ -294,6 +303,8 @@ export class AuthService {
     // Return with frontend-compatible field names
     return {
       ...updatedUser,
+      incomeType: updatedUser.incomeType,
+      estimatedMonthlyIncome: updatedUser.estimatedMonthlyIncome,
       investmentProfile: updatedUser.investorProfile,
       investmentCapacity: updatedUser.monthlyInvestmentCapacity,
       notificationDays: updatedUser.notificationDaysBefore,
