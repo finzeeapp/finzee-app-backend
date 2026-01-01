@@ -1,5 +1,6 @@
 import { prisma } from './prisma.service';
 import { IncomeService } from './income.service';
+import * as cron from 'node-cron';
 
 /**
  * Service responsável por resetar as entradas de renda no início de cada mês
@@ -10,6 +11,7 @@ import { IncomeService } from './income.service';
  */
 export class IncomeResetService {
   private incomeService = new IncomeService();
+  private cronJob: any | null = null;
 
   /**
    * Executa o reset mensal de entradas
@@ -138,7 +140,7 @@ export class IncomeResetService {
   }
 
   /**
-   * Inicia o scheduler de reset mensal
+   * Inicia o scheduler de reset mensal usando node-cron
    * Executa automaticamente no dia 1 de cada mês às 00:00
    */
   startScheduler(): void {
@@ -150,16 +152,32 @@ export class IncomeResetService {
       this.executeMonthlyReset();
     }
 
-    // Agendar próximo reset
-    const timeUntilNextReset = this.getTimeUntilNextReset();
-    const nextResetDate = new Date(Date.now() + timeUntilNextReset);
+    // Usar node-cron para agendar execução todo dia 1 às 00:00
+    // Formato: minuto hora dia mês dia-da-semana
+    // 0 0 1 * * = às 00:00 do dia 1 de todos os meses
+    this.cronJob = cron.schedule('0 0 1 * *', async () => {
+      console.log('📅 Executando reset mensal de entradas...');
+      await this.executeMonthlyReset();
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
     
-    console.log(`📅 Próximo reset agendado para: ${nextResetDate.toLocaleString('pt-BR')}`);
+    console.log('✅ Scheduler de reset mensal iniciado! Executará todo dia 1 às 00:00 (horário de Brasília).');
     
-    setTimeout(() => {
-      this.executeMonthlyReset();
-      // Reagendar para o próximo mês
-      this.startScheduler();
-    }, timeUntilNextReset);
+    // Calcular próxima execução para informação
+    const nextResetDate = new Date();
+    nextResetDate.setMonth(nextResetDate.getMonth() + 1);
+    nextResetDate.setDate(1);
+    nextResetDate.setHours(0, 0, 0, 0);
+    console.log(`⏰ Próxima execução: ${nextResetDate.toLocaleString('pt-BR')}`);
   }
-}
+
+  /**
+   * Para o scheduler
+   */
+  stopScheduler(): void {
+    if (this.cronJob) {
+      this.cronJob.stop();
+      this.cronJob = null;
+      console.log('⏹️ Scheduler de reset mensal parado.');
+    }

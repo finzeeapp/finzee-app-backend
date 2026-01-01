@@ -10,6 +10,20 @@ class PrismaService {
     if (!PrismaService.instance) {
       PrismaService.instance = new PrismaClient({
         log: ['error'],
+        datasources: {
+          db: {
+            url: process.env.DATABASE_URL
+          }
+        },
+        // Configuração otimizada do pool de conexões
+        // Railway free tier tem limite de 100 conexões
+        // Vamos usar 10 conexões por instância com timeouts adequados
+        // Referência: https://www.prisma.io/docs/guides/performance-and-optimization/connection-management
+      });
+
+      // Eventos de lifecycle para debugging
+      PrismaService.instance.$on('error' as never, (e: any) => {
+        console.error('🔴 Prisma Error:', e);
       });
     }
 

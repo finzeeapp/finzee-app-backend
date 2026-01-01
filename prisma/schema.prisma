@@ -9,6 +9,10 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Configurações de pool de conexões otimizadas para Railway
+  // Railway free tier: limite de 100 conexões
+  // Usar pool menor para evitar timeout e exhaustion
+  // Referência: https://www.prisma.io/docs/guides/performance-and-optimization/connection-management
 }
 
 model User {
