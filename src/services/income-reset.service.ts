@@ -212,3 +212,5 @@ export class IncomeResetService {
       this.cronJob = null;
       console.log('⏹️ Scheduler de reset mensal parado.');
     }
+  }
+}
