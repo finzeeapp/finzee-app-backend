@@ -12,6 +12,7 @@ import * as cron from 'node-cron';
 export class IncomeResetService {
   private incomeService = new IncomeService();
   private cronJob: any | null = null;
+  private isExecuting: boolean = false; // Flag para prevenir execuções paralelas
 
   /**
    * Executa o reset mensal de entradas
@@ -23,6 +24,19 @@ export class IncomeResetService {
     usersProcessed: number;
     incomesArchived: number;
   }> {
+    // Verificar se já está executando
+    if (this.isExecuting) {
+      console.log('⚠️ Reset mensal já está em execução. Aguarde a conclusão.');
+      return {
+        success: false,
+        message: 'Reset já está em execução',
+        usersProcessed: 0,
+        incomesArchived: 0
+      };
+    }
+
+    this.isExecuting = true;
+
     try {
       console.log('💰 ==========================================');
       console.log('💰 INICIANDO RESET MENSAL DE ENTRADAS');
@@ -117,6 +131,8 @@ export class IncomeResetService {
         usersProcessed: 0,
         incomesArchived: 0
       };
+    } finally {
+      this.isExecuting = false;
     }
   }
 
@@ -146,10 +162,20 @@ export class IncomeResetService {
   startScheduler(): void {
     console.log('📅 Income Reset Scheduler iniciado');
     
-    // Verificar se deve executar hoje
+    // Verificar se deve executar hoje (com await)
     if (this.shouldExecuteToday()) {
       console.log('📅 Hoje é dia 1! Executando reset...');
-      this.executeMonthlyReset();
+      this.executeMonthlyReset()
+        .then(result => {
+          if (result.success) {
+            console.log('✅ Reset inicial executado com sucesso!');
+          } else {
+            console.error('❌ Falha no reset inicial:', result.message);
+          }
+        })
+        .catch(err => {
+          console.error('❌ Erro inesperado no reset inicial:', err);
+        });
     }
 
     // Usar node-cron para agendar execução todo dia 1 às 00:00
@@ -157,7 +183,12 @@ export class IncomeResetService {
     // 0 0 1 * * = às 00:00 do dia 1 de todos os meses
     this.cronJob = cron.schedule('0 0 1 * *', async () => {
       console.log('📅 Executando reset mensal de entradas...');
-      await this.executeMonthlyReset();
+      const result = await this.executeMonthlyReset();
+      if (result.success) {
+        console.log('✅ Reset mensal agendado executado com sucesso!');
+      } else {
+        console.error('❌ Falha no reset mensal agendado:', result.message);
+      }
     }, {
       timezone: 'America/Sao_Paulo'
     });
