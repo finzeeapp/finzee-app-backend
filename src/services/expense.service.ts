@@ -199,7 +199,21 @@ export class ExpenseService {
     if (data.amount !== undefined) updateData.amount = data.amount;
     if (data.category !== undefined) updateData.category = data.category;
     if (data.type !== undefined) updateData.type = data.type;
-    if (data.dueDate !== undefined) updateData.dueDate = new Date(data.dueDate);
+    
+    // Se dueDate foi alterada, atualizar também dueDay e referenceMonth (para despesas não recorrentes)
+    if (data.dueDate !== undefined) {
+      const newDueDate = new Date(data.dueDate);
+      updateData.dueDate = newDueDate;
+      updateData.dueDay = newDueDate.getDate();
+      
+      // Atualizar referenceMonth apenas se não for despesa recorrente/registrada
+      if (!existing.isRecurring) {
+        const year = newDueDate.getFullYear();
+        const month = newDueDate.getMonth() + 1;
+        updateData.referenceMonth = `${year}-${month.toString().padStart(2, '0')}`;
+      }
+    }
+    
     if (data.dueDay !== undefined) updateData.dueDay = data.dueDay;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.isPaid !== undefined) updateData.isPaid = data.isPaid;

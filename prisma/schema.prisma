@@ -25,6 +25,8 @@ model User {
   incomeType                IncomeType? @default(FIXED)
   monthlyIncome             Float?      // Renda fixa mensal (para FIXED) ou não usado
   estimatedMonthlyIncome    Float?      // Estimativa de renda mensal (para VARIABLE)
+  accumulatedBalance        Float?      @default(0) @map("accumulated_balance") // Saldo acumulado dos meses anteriores
+  lastBalanceUpdate         String?     @map("last_balance_update") // Último mês em que o saldo foi atualizado (formato: YYYY-MM)
   
   monthlyInvestmentCapacity Float?
   investorProfile           String?     @db.VarChar(20)

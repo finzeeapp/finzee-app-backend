@@ -204,4 +204,24 @@ export class IncomeService {
 
     return incomes.reduce((sum, income) => sum + income.amount, 0);
   }
+
+  /**
+   * Calcular renda real de um mês específico
+   */
+  async getRealIncomeForMonth(userId: string, year: number, month: number): Promise<number> {
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0, 23, 59, 59);
+
+    const incomes = await prisma.income.findMany({
+      where: {
+        userId,
+        date: {
+          gte: startOfMonth,
+          lte: endOfMonth
+        }
+      }
+    });
+
+    return incomes.reduce((sum, income) => sum + income.amount, 0);
+  }
 }

@@ -9,7 +9,9 @@ interface Dashboard {
   averageMonthlyIncome?: number; // Média mensal (apenas para VARIABLE)
   estimatedMonthlyIncome?: number; // Meta mensal para VARIABLE
   
-  availableBalance: number;
+  currentMonthBalance: number; // Saldo apenas do mês atual (sem acumulado)
+  accumulatedBalance: number; // Saldo acumulado dos meses anteriores
+  availableBalance: number; // Total disponível (currentMonthBalance + accumulatedBalance)
   totalExpenses: number;
   pendingExpenses: number;
   totalInvestments: number;
@@ -54,7 +56,9 @@ export class DashboardService {
         monthlyIncome: true,
         monthlyInvestmentCapacity: true,
         incomeType: true,
-        estimatedMonthlyIncome: true
+        estimatedMonthlyIncome: true,
+        accumulatedBalance: true,
+        lastBalanceUpdate: true
       }
     });
 
@@ -100,6 +104,62 @@ export class DashboardService {
 
     const availableBalance = (incomeType === 'FIXED' ? monthlyIncome : (realIncomeThisMonth || monthlyIncome)) - totalExpenses;
 
+    // Verificar se precisamos atualizar o saldo acumulado do mês anterior
+    const lastUpdate = user?.lastBalanceUpdate;
+    let accumulatedBalance = Number(user?.accumulatedBalance || 0);
+
+    if (lastUpdate && lastUpdate !== referenceMonth) {
+      // O mês mudou! Precisamos calcular o saldo do mês anterior e acumulá-lo
+      const [lastYear, lastMonth] = lastUpdate.split('-').map(Number);
+      
+      // Buscar despesas do mês anterior
+      const previousExpenses = await prisma.expense.findMany({
+        where: {
+          userId,
+          referenceMonth: lastUpdate,
+          isRecurring: false
+        }
+      });
+
+      const previousTotalExpenses = previousExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+
+      // Buscar renda do mês anterior
+      let previousMonthIncome = 0;
+      const previousRealIncome = await this.incomeService.getRealIncomeForMonth(userId, lastYear, lastMonth);
+      
+      if (incomeType === 'FIXED') {
+        const baseIncome = Number(user?.monthlyIncome) || 0;
+        previousMonthIncome = baseIncome + (previousRealIncome || 0);
+      } else {
+        previousMonthIncome = previousRealIncome || 0;
+      }
+
+      // Calcular o saldo do mês anterior e acumular
+      const previousMonthBalance = previousMonthIncome - previousTotalExpenses;
+      accumulatedBalance += previousMonthBalance;
+
+      // Atualizar o saldo acumulado no banco de dados
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          accumulatedBalance,
+          lastBalanceUpdate: referenceMonth
+        }
+      });
+    } else if (!lastUpdate) {
+      // Primeira vez que o usuário acessa - inicializar
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          accumulatedBalance: 0,
+          lastBalanceUpdate: referenceMonth
+        }
+      });
+    }
+
+    // Calcular o saldo disponível incluindo o saldo acumulado
+    const finalAvailableBalance = availableBalance + accumulatedBalance;
+
     // Calcular total de investimentos (valor atual)
     const totalInvestments = investments.reduce((sum, investment) => {
       const value = Number(investment.currentValue || investment.amount || 0);
@@ -133,7 +193,9 @@ export class DashboardService {
     const dashboard: Dashboard = {
       incomeType,
       monthlyIncome: parseFloat(monthlyIncome.toFixed(2)),
-      availableBalance: parseFloat(availableBalance.toFixed(2)),
+      currentMonthBalance: parseFloat(availableBalance.toFixed(2)),
+      accumulatedBalance: parseFloat(accumulatedBalance.toFixed(2)),
+      availableBalance: parseFloat(finalAvailableBalance.toFixed(2)),
       totalExpenses: parseFloat(totalExpenses.toFixed(2)),
       pendingExpenses: parseFloat(pendingExpenses.toFixed(2)),
       totalInvestments: parseFloat(totalInvestments.toFixed(2)),
