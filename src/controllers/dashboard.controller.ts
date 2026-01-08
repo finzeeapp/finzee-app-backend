@@ -28,4 +28,25 @@ export class DashboardController {
       res.status(400).json({ error: error.message });
     }
   }
+
+  async updateAccumulatedBalance(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.userId) {
+        res.status(401).json({ error: 'Usuário não autenticado' });
+        return;
+      }
+
+      const { accumulatedBalance } = req.body;
+
+      if (accumulatedBalance === null || accumulatedBalance === undefined) {
+        res.status(400).json({ error: 'Valor acumulado é obrigatório' });
+        return;
+      }
+
+      await this.dashboardService.updateAccumulatedBalance(req.userId, accumulatedBalance);
+      res.json({ message: 'Valor acumulado atualizado com sucesso' });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
 }

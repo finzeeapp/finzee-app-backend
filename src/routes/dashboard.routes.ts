@@ -9,5 +9,6 @@ const dashboardController = new DashboardController();
 router.use(authMiddleware);
 
 router.get('/', (req, res) => dashboardController.getMonthlyDashboard(req, res));
+router.patch('/accumulated-balance', (req, res) => dashboardController.updateAccumulatedBalance(req, res));
 
 export { router as dashboardRoutes };

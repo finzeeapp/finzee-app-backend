@@ -214,4 +214,11 @@ export class DashboardService {
 
     return dashboard;
   }
+
+  async updateAccumulatedBalance(userId: string, accumulatedBalance: number): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { accumulatedBalance }
+    });
+  }
 }
