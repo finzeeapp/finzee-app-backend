@@ -251,7 +251,65 @@ export class ExpenseService {
       paymentDate: paymentInfo?.paidAt ? new Date(paymentInfo.paidAt) : new Date()
     };
 
-    return this.update(id, userId, updateData);
+    const updatedExpense = await this.update(id, userId, updateData);
+
+    // Verificar se é uma parcela e se todas as parcelas foram pagas
+    if (updatedExpense.parentExpenseId) {
+      await this.cleanupCompletedInstallments(userId);
+    }
+
+    return updatedExpense;
+  }
+
+  /**
+   * Remove despesas registradas (parceladas/financiamentos) cujas parcelas foram todas pagas
+   */
+  async cleanupCompletedInstallments(userId: string): Promise<void> {
+    try {
+      console.log(`🧹 Verificando despesas parceladas completas para usuário ${userId}...`);
+
+      // Buscar todas as despesas registradas parceladas/financiamentos
+      const registeredInstallments = await prisma.expense.findMany({
+        where: {
+          userId,
+          isRecurring: true,
+          type: { in: ['installment', 'financing'] },
+          totalInstallments: { not: null }
+        }
+      });
+
+      for (const baseExpense of registeredInstallments) {
+        // Buscar todas as parcelas geradas desta despesa
+        const allInstallments = await prisma.expense.findMany({
+          where: {
+            parentExpenseId: baseExpense.id,
+            isGenerated: true
+          }
+        });
+
+        // Verificar se já foram geradas todas as parcelas
+        const totalGenerated = allInstallments.length;
+        const totalExpected = baseExpense.totalInstallments || 0;
+
+        if (totalGenerated >= totalExpected && totalExpected > 0) {
+          // Verificar se todas as parcelas foram pagas
+          const allPaid = allInstallments.every(inst => inst.isPaid);
+
+          if (allPaid) {
+            // Excluir a despesa registrada (base)
+            await prisma.expense.delete({
+              where: { id: baseExpense.id }
+            });
+            console.log(`✅ Despesa parcelada concluída removida: ${baseExpense.title} (${totalGenerated}/${totalExpected} pagas)`);
+          } else {
+            const paidCount = allInstallments.filter(inst => inst.isPaid).length;
+            console.log(`⏳ Despesa ${baseExpense.title}: ${paidCount}/${totalExpected} parcelas pagas`);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao limpar despesas parceladas completas:', error);
+    }
   }
 
   /**
